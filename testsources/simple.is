@@ -1,0 +1,10 @@
+var a = {a:"", b:5, c:function(){return 5;}};
+
+function(b) {
+	
+	return function(c) {
+		return { one: c, two: b };
+	};
+}
+
+
