@@ -28,6 +28,5 @@ namespace InabaScript {
 
         public IExpression LHS { get; private set; }
         public IExpression MemberIdent { get; private set; }
-
     }
 }

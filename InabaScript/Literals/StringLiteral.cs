@@ -8,9 +8,16 @@ namespace InabaScript {
 
         internal StringLiteral(string str) {
             String = str;
+            Type = new StringType();
         }
 
         public string String { get; private set; }
 
+
+        public IType Type
+        {
+            get;
+            private set;
+        }
     }
 }

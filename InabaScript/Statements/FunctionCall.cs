@@ -16,6 +16,7 @@ namespace InabaScript
         internal FunctionCall(IExpression funcReturner, List<IExpression> callingExpressions)
         {
             CallingExpressions = callingExpressions;
+            Type = (funcReturner.Type as FunctionType).ReturnType;
         }
 
         #region IExpression Members
@@ -25,5 +26,11 @@ namespace InabaScript
         public FunctionDeclaration TheCalledOne { get; internal set; }  // Gets set by scope and type resolver
 
         #endregion
+
+        public IType Type
+        {
+            get;
+            private set;
+        }
     }
 }

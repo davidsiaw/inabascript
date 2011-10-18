@@ -17,5 +17,11 @@ namespace InabaScript {
 
         public List<VariableDeclaration> Members { get; private set; }
 
+
+        public IType Type
+        {
+            get;
+            private set;
+        }
     }
 }

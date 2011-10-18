@@ -17,7 +17,7 @@ namespace InabaScript {
 	const int _utf8bom = 5;
 	const int _validStringLiteral = 6;
 	const int _colon = 7;
-	const int maxT = 23;
+	const int maxT = 24;
 
 		const bool T = true;
 		const bool x = false;
@@ -91,11 +91,6 @@ static int anonfunc = 0;
 		ident = t.val; 
 	}
 
-	static void Type(out string type) {
-		Expect(2);
-		type = t.val; 
-	}
-
 	static void String(out string str) {
 		Expect(6);
 		str = t.val.Substring(1, t.val.Length - 2); 
@@ -103,7 +98,6 @@ static int anonfunc = 0;
 
 	static void FunctionParamsAndBody(out FunctionBody body, Scope scope) {
 		string ident; 
-		string type = null; 
 		IStatement stmt; 
 		List<VariableDeclaration> parameters = new List<VariableDeclaration>(); 
 		List<IStatement> statements = new List<IStatement>(); 
@@ -111,22 +105,13 @@ static int anonfunc = 0;
 		Expect(8);
 		if (la.kind == 1) {
 			Identifier(out ident);
-			if (la.kind == 7) {
-				Get();
-				Type(out type);
-			}
-			vd = new VariableDeclaration(ident, type);
+			vd = new VariableDeclaration(ident, new ParameterType());
 			parameters.Add(vd); 
 			scope = new Scope(vd, scope);	
 			while (la.kind == 9) {
 				Get();
-				type = null; 
 				Identifier(out ident);
-				if (la.kind == 7) {
-					Get();
-					Type(out type);
-				}
-				vd = new VariableDeclaration(ident, type);
+				vd = new VariableDeclaration(ident, new ParameterType());
 				parameters.Add(vd); 
 				scope = new Scope(vd,scope);	
 			}
@@ -137,6 +122,10 @@ static int anonfunc = 0;
 			Statement(out stmt, ref scope);
 			statements.Add(stmt); 
 		}
+		if (la.kind == 22) {
+			ReturnStatement(out stmt, ref scope);
+		}
+		statements.Add(stmt); 
 		Expect(12);
 		body = new FunctionBody(parameters, statements, scope); 
 	}
@@ -146,6 +135,7 @@ static int anonfunc = 0;
 		VariableDeclaration vardecl; 
 		ReturnStatement retstmt; 
 		FunctionCall funccall; 
+		TypeDeclaration typedecl; 
 		stmt = null; 
 		if (la.kind == 19) {
 			VariableDeclaration(out vardecl, ref scope);
@@ -157,10 +147,18 @@ static int anonfunc = 0;
 			FunctionCall(out funccall, ref scope);
 			Expect(21);
 			stmt = funccall; 
-		} else if (la.kind == 22) {
-			ReturnStatement(out retstmt, ref scope);
-			stmt = retstmt; 
-		} else SynErr(24);
+		} else if (la.kind == 23) {
+			TypeDeclaration(out typedecl, ref scope);
+			stmt = typedecl; 
+		} else SynErr(25);
+	}
+
+	static void ReturnStatement(out ReturnStatement retstmt, ref Scope scope) {
+		IExpression expr; 
+		Expect(22);
+		Expression(out expr, ref scope);
+		Expect(21);
+		retstmt = new ReturnStatement(expr); 
 	}
 
 	static void FunctionDeclaration(out FunctionDeclaration funcdecl, ref Scope scope) {
@@ -242,7 +240,7 @@ static int anonfunc = 0;
 				Caller(out callers, ref scope);
 				expr = new FunctionCall(expr, callers); 
 			}
-		} else SynErr(25);
+		} else SynErr(26);
 	}
 
 	static void ObjectDeclaration(out ObjectDeclaration obj, ref Scope scope) {
@@ -275,7 +273,7 @@ static int anonfunc = 0;
 		} else if (la.kind == 1) {
 			Identifier(out ident);
 			expr = new Identifier(ident, scope); 
-		} else SynErr(26);
+		} else SynErr(27);
 	}
 
 	static void Caller(out ExpressionList callers, ref Scope scope) {
@@ -325,12 +323,28 @@ static int anonfunc = 0;
 		funccall = new FunctionCall(expr, callers); 
 	}
 
-	static void ReturnStatement(out ReturnStatement retstmt, ref Scope scope) {
-		IExpression expr; 
-		Expect(22);
-		Expression(out expr, ref scope);
+	static void TypeDeclaration(out TypeDeclaration typedecl, ref Scope scope) {
+		string ident; 
+		VariableDeclaration vardecl; 
+		Expect(23);
+		Identifier(out ident);
+		typedecl = new TypeDeclaration(ident); 
+		scope = new Scope(typedecl, scope); 
+		Expect(20);
+		Expect(11);
+		Identifier(out ident);
+		vardecl = new VariableDeclaration(ident, typedecl.Type); 
+		typedecl.Add(ident); 
+		scope = new Scope(vardecl, scope); 
+		while (la.kind == 9) {
+			Get();
+			Identifier(out ident);
+			vardecl = new VariableDeclaration(ident, typedecl.Type); 
+			typedecl.Add(ident); 
+			scope = new Scope(vardecl, scope); 
+		}
+		Expect(12);
 		Expect(21);
-		retstmt = new ReturnStatement(expr); 
 	}
 
 	static void InabaScript() {
@@ -340,7 +354,7 @@ static int anonfunc = 0;
 			Get();
 		}
 		while (StartOf(1)) {
-			while (!(StartOf(3))) {SynErr(27); Get();}
+			while (!(StartOf(3))) {SynErr(28); Get();}
 			Statement(out stmt, ref scope);
 			iss.stmts.Add(stmt); 
 		}
@@ -360,10 +374,10 @@ static int anonfunc = 0;
 		}
 
 		static bool[,] set = {
-			{T,T,x,x, x,x,x,x, T,x,x,x, x,T,x,x, x,x,x,T, x,x,T,x, x},
-		{x,T,x,x, x,x,x,x, T,x,x,x, x,T,x,x, x,x,x,T, x,x,T,x, x},
-		{x,T,x,T, T,x,T,x, T,x,x,T, x,T,x,x, x,x,x,x, x,x,x,x, x},
-		{T,T,x,x, x,x,x,x, T,x,x,x, x,T,x,x, x,x,x,T, x,x,T,x, x}
+			{T,T,x,x, x,x,x,x, T,x,x,x, x,T,x,x, x,x,x,T, x,x,x,T, x,x},
+		{x,T,x,x, x,x,x,x, T,x,x,x, x,T,x,x, x,x,x,T, x,x,x,T, x,x},
+		{x,T,x,T, T,x,T,x, T,x,x,T, x,T,x,x, x,x,x,x, x,x,x,x, x,x},
+		{T,T,x,x, x,x,x,x, T,x,x,x, x,T,x,x, x,x,x,T, x,x,x,T, x,x}
 
 		};
 	} // end Parser
@@ -399,11 +413,12 @@ static int anonfunc = 0;
 			case 20: s = "\"=\" expected"; break;
 			case 21: s = "\";\" expected"; break;
 			case 22: s = "\"return\" expected"; break;
-			case 23: s = "??? expected"; break;
-			case 24: s = "invalid Statement"; break;
-			case 25: s = "invalid InnerReferencable"; break;
-			case 26: s = "invalid Referencer"; break;
-			case 27: s = "this symbol not expected in InabaScript"; break;
+			case 23: s = "\"type\" expected"; break;
+			case 24: s = "??? expected"; break;
+			case 25: s = "invalid Statement"; break;
+			case 26: s = "invalid InnerReferencable"; break;
+			case 27: s = "invalid Referencer"; break;
+			case 28: s = "this symbol not expected in InabaScript"; break;
 
 				default: s = "error " + n; break;
 			}

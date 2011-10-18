@@ -8,9 +8,15 @@ namespace InabaScript {
 
         internal FloatLiteral(string number) {
             Number = double.Parse(number);
+            Type = new RealRangeType();
         }
 
         public double Number { get; private set; }
 
+        public IType Type
+        {
+            get;
+            private set;
+        }
     }
 }

@@ -98,8 +98,8 @@ namespace InabaScript {
 		const char EOL = '\n';
 		const int eofSym = 0; /* pdt */
 		const int charSetSize = 256;
-	const int maxT = 23;
-	const int noSym = 23;
+	const int maxT = 24;
+	const int noSym = 24;
 	static short[] start = {
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
@@ -239,6 +239,7 @@ namespace InabaScript {
 			case "function": t.kind = 13; break;
 			case "var": t.kind = 19; break;
 			case "return": t.kind = 22; break;
+			case "type": t.kind = 23; break;
 			default: break;
 		}
 		}

@@ -70,10 +70,6 @@ Identifier<out string ident> =
 ident													(. ident = t.val; .)
 .
 
-Type<out string type> =
-type													(. type = t.val; .)
-.
-
 
 String<out string str> = 
 validStringLiteral										(. str = t.val.Substring(1, t.val.Length - 2); .)
@@ -82,19 +78,18 @@ validStringLiteral										(. str = t.val.Substring(1, t.val.Length - 2); .)
 
 FunctionParamsAndBody<out FunctionBody body, Scope scope> =			
 														(. string ident; .)
-														(. string type = null; .)
 														(. IStatement stmt; .)
 														(. List<VariableDeclaration> parameters = new List<VariableDeclaration>(); .)
 														(. List<IStatement> statements = new List<IStatement>(); .)
 														(. VariableDeclaration vd; .)
 "("
 [
-Identifier<out ident> [ colon Type<out type> ]			(. vd = new VariableDeclaration(ident, type);
+Identifier<out ident>									(. vd = new VariableDeclaration(ident, new ParameterType());
 														   parameters.Add(vd); 
 														   scope = new Scope(vd, scope);	.)
-{","													(. type = null; .)
+{","													
 
-Identifier<out ident> [ colon Type<out type> ]			(. vd = new VariableDeclaration(ident, type);
+Identifier<out ident>									(. vd = new VariableDeclaration(ident, new ParameterType());
 														   parameters.Add(vd); 
 														   scope = new Scope(vd,scope);	.)
 }
@@ -104,6 +99,7 @@ Identifier<out ident> [ colon Type<out type> ]			(. vd = new VariableDeclaration
 { 
 Statement<out stmt, ref scope>							(. statements.Add(stmt); .)
 }
+[ReturnStatement<out stmt, ref scope>]				(. statements.Add(stmt); .)
 "}"														(. body = new FunctionBody(parameters, statements, scope); .)
 .
 
@@ -175,8 +171,8 @@ float													(. expr = new FloatLiteral(t.val); .)
 .
 
 ObjectDeclaration<out ObjectDeclaration obj, ref Scope scope> =
-														(. obj = new ObjectDeclaration(); .)
-														(. VariableDeclaration vardecl; .)
+															(. obj = new ObjectDeclaration(); .)
+															(. VariableDeclaration vardecl; .)
 "{"
 [
 	MemberDeclaration<out vardecl, ref scope>				(. obj.AddMember(vardecl); .)
@@ -244,8 +240,26 @@ Expression<out expr, ref scope>
 ";"														(. retstmt = new ReturnStatement(expr); .)
 .
 
-TypeDeclaration<out IStatement typedecl, ref Scope scope> =
 
+
+TypeDeclaration<out TypeDeclaration typedecl, ref Scope scope> =	(. string ident; .)
+																	(. VariableDeclaration vardecl; .)
+"type"
+Identifier<out ident>												(. typedecl = new TypeDeclaration(ident); .)
+																	(. scope = new Scope(typedecl, scope); .)
+"="
+"{" 
+Identifier<out ident>												(. vardecl = new VariableDeclaration(ident, typedecl.Type); .)
+																	(. typedecl.Add(ident); .)
+																	(. scope = new Scope(vardecl, scope); .)
+
+{
+"," Identifier<out ident>											(. vardecl = new VariableDeclaration(ident, typedecl.Type); .)
+																	(. typedecl.Add(ident); .)
+																	(. scope = new Scope(vardecl, scope); .)
+}
+"}"
+";"
 .
 
 Statement<out IStatement stmt, ref Scope scope> =		(. FunctionDeclaration funcdecl; .)
@@ -258,7 +272,6 @@ Statement<out IStatement stmt, ref Scope scope> =		(. FunctionDeclaration funcde
 VariableDeclaration<out vardecl, ref scope>				(. stmt = vardecl; .)
 | FunctionDeclaration<out funcdecl, ref scope>			(. stmt = funcdecl; .)
 | FunctionCall<out funccall, ref scope> ";"				(. stmt = funccall; .)
-| ReturnStatement<out retstmt, ref scope>				(. stmt = retstmt; .)
 | TypeDeclaration<out typedecl, ref scope>				(. stmt = typedecl; .)
 )
 .

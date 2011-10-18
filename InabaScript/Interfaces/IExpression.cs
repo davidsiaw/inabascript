@@ -6,5 +6,6 @@ using System.Text;
 namespace InabaScript {
 
     public interface IExpression {
+        IType Type { get; }
     }
 }

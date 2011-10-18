@@ -15,6 +15,14 @@ namespace InabaScript
             {
                 get { return ""; }
             }
+
+            public IType Type
+            {
+                get
+                {
+                    return null;
+                }
+            }
         }
 
         public List<IStatement> stmts = new List<IStatement>();

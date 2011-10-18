@@ -79,17 +79,29 @@
     <Compile Include="Literals\FloatLiteral.cs" />
     <Compile Include="Literals\IntegerLiteral.cs" />
     <Compile Include="Literals\StringLiteral.cs" />
-    <Compile Include="Literals\TypeInitializer.cs" />
     <Compile Include="Parser.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Scanner.cs" />
     <Compile Include="Scope.cs" />
-    <Compile Include="Statements\FunctionBody.cs" />
-    <Compile Include="Statements\FunctionCall.cs" />
-    <Compile Include="Statements\FunctionDeclaration.cs" />
-    <Compile Include="Statements\ImportStatement.cs" />
-    <Compile Include="Statements\ReturnStatement.cs" />
-    <Compile Include="Statements\VariableDeclaration.cs" />
+    <Compile Include="Statements\FunctionBody.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Statements\FunctionCall.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Statements\FunctionDeclaration.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Statements\ImportStatement.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Statements\ReturnStatement.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Statements\TypeDeclaration.cs" />
+    <Compile Include="Statements\VariableDeclaration.cs">
+      <SubType>Code</SubType>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <None Include="InabaScript.atg" />

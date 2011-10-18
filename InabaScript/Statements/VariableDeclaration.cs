@@ -10,11 +10,13 @@ namespace InabaScript {
         internal VariableDeclaration(string identifier, IExpression initializer) {
             Identifier = identifier;
             Initializer = initializer;
+
 		}
 
-        internal VariableDeclaration(string identifier, string type)
+        internal VariableDeclaration(string identifier, IType type)
         {
             Identifier = identifier;
+            Type = type;
 		}
 
         public string Identifier { get; private set; }
@@ -28,5 +30,12 @@ namespace InabaScript {
 
 
 		#endregion
-	}
+
+
+        public IType Type
+        {
+            get;
+            private set;
+        }
+    }
 }
