@@ -98,17 +98,17 @@ namespace InabaScript {
 		const char EOL = '\n';
 		const int eofSym = 0; /* pdt */
 		const int charSetSize = 256;
-	const int maxT = 23;
-	const int noSym = 23;
+	const int maxT = 11;
+	const int noSym = 11;
 	static short[] start = {
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-	  0,  0,  8,  0,  0,  0,  0,  0, 13, 15, 20, 18, 14, 19, 22, 21,
-	 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 11, 24,  0, 23,  0,  0,
+	  0,  0,  8,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+	 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 11, 14,  0, 13,  0,  0,
 	  0,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,
 	  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  0,  0,  0,  0,  0,
 	  0,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,
-	  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1, 16,  0, 17,  0,  0,
+	  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  0,  0,  0,  0,  0,
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
@@ -236,9 +236,7 @@ namespace InabaScript {
 
 		static void CheckLiteral() {
 			switch (t.val) {
-			case "function": t.kind = 13; break;
-			case "var": t.kind = 19; break;
-			case "return": t.kind = 22; break;
+			case "var": t.kind = 8; break;
 			default: break;
 		}
 		}
@@ -291,29 +289,9 @@ namespace InabaScript {
 				else if (ch == '.') {AddCh(); goto case 3;}
 				else {t.kind = 3; break;}
 			case 13:
-				{t.kind = 8; break;}
-			case 14:
 				{t.kind = 9; break;}
-			case 15:
+			case 14:
 				{t.kind = 10; break;}
-			case 16:
-				{t.kind = 11; break;}
-			case 17:
-				{t.kind = 12; break;}
-			case 18:
-				{t.kind = 14; break;}
-			case 19:
-				{t.kind = 15; break;}
-			case 20:
-				{t.kind = 16; break;}
-			case 21:
-				{t.kind = 17; break;}
-			case 22:
-				{t.kind = 18; break;}
-			case 23:
-				{t.kind = 20; break;}
-			case 24:
-				{t.kind = 21; break;}
 
 			}
 			t.val = new String(tval, 0, tlen);

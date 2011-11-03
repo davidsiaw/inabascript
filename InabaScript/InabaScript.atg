@@ -5,12 +5,10 @@ COMPILER InabaScript
 
 /* Add auxiliary methods and declaration here. */
 
-internal static InabaScriptSource iss;
-static int anonfunc = 0;
-    
+public static InabaScriptSource iss;
+
 /* If you want your generated compiler case insensitive add the */
 /* keyword IGNORECASE here. */
-
 
 CHARACTERS
 /* Add character set declarations here. */
@@ -65,214 +63,48 @@ PRODUCTIONS
 /* Add your productions here, one must have the same name as the grammar, */
 /* it will be the start symbol (entry point of your compiler). */
 
-
-Identifier<out string ident> =
-ident													(. ident = t.val; .)
+Identifier<out string identifier> =
+ident															(. identifier = t.val; .)
 .
 
-Type<out string type> =
-type													(. type = t.val; .)
+IntegerLiteral<out IExpression integer> =
+integer															(. integer = new IntegerLiteral(long.Parse(t.val)); .)
 .
 
-
-String<out string str> = 
-validStringLiteral										(. str = t.val.Substring(1, t.val.Length - 2); .)
+Referencer<ref Scope scope, out IExpression expr> =				(. string identifier; .)
+Identifier<out identifier>										(. expr = new Referencer(scope, identifier); .)
 .
 
-
-FunctionParamsAndBody<out FunctionBody body, Scope scope> =			
-														(. string ident; .)
-														(. string type = null; .)
-														(. IStatement stmt; .)
-														(. List<VariableDeclaration> parameters = new List<VariableDeclaration>(); .)
-														(. List<IStatement> statements = new List<IStatement>(); .)
-														(. VariableDeclaration vd; .)
-"("
-[
-Identifier<out ident> [ colon Type<out type> ]			(. vd = new VariableDeclaration(ident, type);
-														   parameters.Add(vd); 
-														   scope = new Scope(vd, scope);	.)
-{","													(. type = null; .)
-
-Identifier<out ident> [ colon Type<out type> ]			(. vd = new VariableDeclaration(ident, type);
-														   parameters.Add(vd); 
-														   scope = new Scope(vd,scope);	.)
-}
-]
-")"
-"{"
-{ 
-Statement<out stmt, ref scope>							(. statements.Add(stmt); .)
-}
-"}"														(. body = new FunctionBody(parameters, statements, scope); .)
-.
-
-
-
-FunctionDeclaration<out FunctionDeclaration funcdecl, ref Scope scope> =	
-														(. string ident = "anon" + anonfunc ; anonfunc++; .)
-"function"												(. FunctionBody body; .)
-[
-Identifier<out ident>
-]
-FunctionParamsAndBody<out body, scope>					(. funcdecl = new FunctionDeclaration(ident, body); .)
-														(. scope = new Scope(funcdecl, scope); .)
-.														
-
-
-
-Expression<out IExpression expr, ref Scope scope> =		(. IExpression rhs; .)
-														(. string op; .)
-														
-Term<out expr, ref scope>											
-{
+Expression<ref Scope scope, out IExpression expr> =				(. expr = null; .)
 (
-"+"														(. op = "(+)"; .)
-| 
-"-"														(. op = "(-)"; .)
-)												
-Term<out rhs, ref scope>								(. expr = new FunctionCall(new Identifier(op, scope), expr, rhs); .)
-}
-.
-
-Term<out IExpression expr, ref Scope scope> =			(. IExpression rhs; .)
-														(. string op; .)
-														
-Factor<out expr, ref scope>											
-{
-(
-"*"														(. op = "(*)"; .)
-| 
-"/"														(. op = "(/)"; .)
-)												
-Factor<out rhs, ref scope>								(. expr = new FunctionCall(new Identifier(op, scope), expr, rhs); .)
-}
-.
-
-Factor<out IExpression expr, ref Scope scope> =			(. IExpression rhs; string ident;.)
-
-InnerReferencable<out expr, ref scope>								
-{
-"."														(. expr = new InnerReference(expr); .)
-Identifier<out ident>									(. (expr as InnerReference).SetMemberIdent(ident); .)
-}
-.
-
-InnerReferencable<out IExpression expr, ref Scope scope> =
-														(. expr = null; string str = null;.)
-														(. List<IExpression> callers; .)
-														(. ObjectDeclaration obj; .)
-(
-float													(. expr = new FloatLiteral(t.val); .)
-| integer												(. expr = new IntegerLiteral(t.val); .)
-| String<out str>										(. expr = new StringLiteral(str); .)
-| ObjectDeclaration<out obj, ref scope>						(. expr = obj; .)
-| Referencer<out expr, ref scope>
-	[
-	Caller<out callers, ref scope>							(. expr = new FunctionCall(expr, callers); .)
-	]
+IntegerLiteral<out expr> |
+Referencer<ref scope, out expr>
 )
 .
 
-ObjectDeclaration<out ObjectDeclaration obj, ref Scope scope> =
-														(. obj = new ObjectDeclaration(); .)
-														(. VariableDeclaration vardecl; .)
-"{"
-[
-	MemberDeclaration<out vardecl, ref scope>				(. obj.AddMember(vardecl); .)
-	{( ","
-	MemberDeclaration<out vardecl, ref scope>				(. obj.AddMember(vardecl); .)
-	)}
-]
-"}"
-.
-
-MemberDeclaration<out VariableDeclaration vardecl, ref Scope scope> =	
-														(. IExpression expr = null; .)
-														(. string ident; .)
-Identifier<out ident>
-":"
-Expression<out expr, ref scope>							(. vardecl = new VariableDeclaration(ident, expr); .)												
-.
-
-Referencer<out IExpression expr, ref Scope scope> =		(. FunctionDeclaration funcdecl; .)
-														(. string ident; .)
-														(. expr = null; .)
-(
-	( "(" Expression<out expr, ref scope> ")" )
-	| FunctionDeclaration<out funcdecl, ref scope>		(. expr = funcdecl; .)
-	| Identifier<out ident>								(. expr = new Identifier(ident, scope); .)
-)
-.
-
-Caller<out ExpressionList callers, ref Scope scope> =	(. IExpression expr; .)
-"("														(. callers = new List<IExpression>(); .)
-	[
-		Expression<out expr, ref scope>						(. callers.Add(expr); .)
-		{( "," 
-		Expression<out expr, ref scope>						(. callers.Add(expr); .)
-		)}
-	]
-")"	
+VariableDeclaration<ref Scope scope, out IStatement vardecl> =	(. string identifier; .)
+																(. IExpression expr; .)
+"var" 
+Identifier<out identifier>
+"=" 
+Expression<ref scope, out expr>
+																(. vardecl = new VariableDeclaration(identifier, expr); .)
+																(. scope = new Scope(vardecl as VariableDeclaration, scope); .)
 .
 
 
-VariableDeclaration<out VariableDeclaration vardecl, ref Scope scope> =	
-														(. IExpression expr = null; .)
-"var"													(. string ident; .)
-Identifier<out ident>
-[
-"="
-(Expression<out expr, ref scope>)
-]
-";"														(. vardecl = new VariableDeclaration(ident, expr); .)
-														(. scope = new Scope(vardecl, scope); .)
+
+Statement<ref Scope scope, out IStatement statement> =
+VariableDeclaration<ref scope, out statement>
 .
-
-
-FunctionCall<out FunctionCall funccall, ref Scope scope>	=
-														(. IExpression expr; .)
-														(. List<IExpression> callers; .)
-Referencer<out expr, ref scope>		
-Caller<out callers, ref scope>								(. funccall = new FunctionCall(expr, callers); .)														
-.
-
-ReturnStatement<out ReturnStatement retstmt, ref Scope scope> =
-														(. IExpression expr; .)
-"return"
-Expression<out expr, ref scope>
-";"														(. retstmt = new ReturnStatement(expr); .)
-.
-
-TypeDeclaration<out IStatement typedecl, ref Scope scope> =
-
-.
-
-Statement<out IStatement stmt, ref Scope scope> =		(. FunctionDeclaration funcdecl; .)
-														(. VariableDeclaration vardecl; .)
-														(. ReturnStatement retstmt; .)
-														(. FunctionCall funccall; .)
-														(. TypeDeclaration typedecl; .)
-														(. stmt = null; .)
-(
-VariableDeclaration<out vardecl, ref scope>				(. stmt = vardecl; .)
-| FunctionDeclaration<out funcdecl, ref scope>			(. stmt = funcdecl; .)
-| FunctionCall<out funccall, ref scope> ";"				(. stmt = funccall; .)
-| ReturnStatement<out retstmt, ref scope>				(. stmt = retstmt; .)
-| TypeDeclaration<out typedecl, ref scope>				(. stmt = typedecl; .)
-)
-.
-
 
 /* InabaScript, like JavaScript is just a bunch of statements */
-InabaScript =
-														(. IStatement stmt; .)
-														(. Scope scope = iss.scope; .)
+InabaScript =													(. Scope scope = null; .)
+																(. IStatement stmt; .)
 [utf8bom]
-{ 
-SYNC Statement<out stmt, ref scope>						(. iss.stmts.Add(stmt); .)
-}							
-														(. iss.scope = scope; .)
+{
+SYNC Statement<ref scope, out stmt> ";"							(. iss.statements.Add(stmt); .)
+}
 .
 
 END InabaScript.

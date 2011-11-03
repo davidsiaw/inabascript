@@ -30,8 +30,6 @@ using System;
 -->namespace
 
 namespace InabaScript {
-
-    using ExpressionList = List<IExpression>;
     
 	internal class Parser {
 	-->constants

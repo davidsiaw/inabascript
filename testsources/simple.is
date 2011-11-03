@@ -1,10 +1,5 @@
-var a = {a:"", b:5, c:function(){return 5;}};
-
-function(b) {
-	
-	return function(c) {
-		return { one: c, two: b };
-	};
-}
-
-
+var a = 10;
+var b = a;
+var c = 2412037;
+var d = 2412231312037;
+var e = 788;
