@@ -98,13 +98,13 @@ namespace InabaScript {
 		const char EOL = '\n';
 		const int eofSym = 0; /* pdt */
 		const int charSetSize = 256;
-	const int maxT = 11;
-	const int noSym = 11;
+	const int maxT = 14;
+	const int noSym = 14;
 	static short[] start = {
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-	  0,  0,  8,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-	 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 11, 14,  0, 13,  0,  0,
+	  0,  0, 10,  0,  0,  0,  0,  0, 16, 17,  0,  0, 15,  3,  0,  0,
+	 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 13, 19,  0, 18,  0,  0,
 	  0,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,
 	  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  0,  0,  0,  0,  0,
 	  0,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,
@@ -115,7 +115,7 @@ namespace InabaScript {
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  5,
+	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  7,
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 	  -1};
 
@@ -236,7 +236,7 @@ namespace InabaScript {
 
 		static void CheckLiteral() {
 			switch (t.val) {
-			case "var": t.kind = 8; break;
+			case "var": t.kind = 11; break;
 			default: break;
 		}
 		}
@@ -263,35 +263,47 @@ namespace InabaScript {
 				else {t.kind = noSym; break;}
 			case 4:
 				if ((ch >= '0' && ch <= '9')) {AddCh(); goto case 4;}
-				else {t.kind = 4; break;}
+				else {t.kind = 3; break;}
 			case 5:
-				if (ch == 187) {AddCh(); goto case 6;}
+				if ((ch >= '0' && ch <= '9')) {AddCh(); goto case 6;}
 				else {t.kind = noSym; break;}
 			case 6:
-				if (ch == 191) {AddCh(); goto case 7;}
-				else {t.kind = noSym; break;}
+				if ((ch >= '0' && ch <= '9')) {AddCh(); goto case 6;}
+				else {t.kind = 4; break;}
 			case 7:
-				{t.kind = 5; break;}
+				if (ch == 187) {AddCh(); goto case 8;}
+				else {t.kind = noSym; break;}
 			case 8:
-				if ((ch == '!' || ch >= '#' && ch <= '$' || ch == '&' || ch >= '(' && ch <= '[' || ch >= ']' && ch <= '_' || ch >= 'a' && ch <= '~' || ch == 163 || ch == 169 || ch == 174)) {AddCh(); goto case 8;}
-				else if (ch == '"') {AddCh(); goto case 10;}
-				else if (ch == 92) {AddCh(); goto case 9;}
+				if (ch == 191) {AddCh(); goto case 9;}
 				else {t.kind = noSym; break;}
 			case 9:
-				if ((ch == 92 || ch == 'n' || ch == 'r')) {AddCh(); goto case 8;}
-				else {t.kind = noSym; break;}
+				{t.kind = 5; break;}
 			case 10:
-				{t.kind = 6; break;}
+				if ((ch == '!' || ch >= '#' && ch <= '$' || ch == '&' || ch >= '(' && ch <= '[' || ch >= ']' && ch <= '_' || ch >= 'a' && ch <= '~' || ch == 163 || ch == 169 || ch == 174)) {AddCh(); goto case 10;}
+				else if (ch == '"') {AddCh(); goto case 12;}
+				else if (ch == 92) {AddCh(); goto case 11;}
+				else {t.kind = noSym; break;}
 			case 11:
-				{t.kind = 7; break;}
+				if ((ch == 92 || ch == 'n' || ch == 'r')) {AddCh(); goto case 10;}
+				else {t.kind = noSym; break;}
 			case 12:
-				if ((ch >= '0' && ch <= '9')) {AddCh(); goto case 12;}
-				else if (ch == '.') {AddCh(); goto case 3;}
-				else {t.kind = 3; break;}
+				{t.kind = 6; break;}
 			case 13:
-				{t.kind = 9; break;}
+				{t.kind = 7; break;}
 			case 14:
+				if ((ch >= '0' && ch <= '9')) {AddCh(); goto case 14;}
+				else if (ch == '.') {AddCh(); goto case 5;}
+				else {t.kind = 3; break;}
+			case 15:
+				{t.kind = 8; break;}
+			case 16:
+				{t.kind = 9; break;}
+			case 17:
 				{t.kind = 10; break;}
+			case 18:
+				{t.kind = 12; break;}
+			case 19:
+				{t.kind = 13; break;}
 
 			}
 			t.val = new String(tval, 0, tlen);

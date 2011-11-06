@@ -14,7 +14,7 @@ namespace isc {
 
             InabaScriptSource iss = new InabaScriptSource(@"..\..\..\testsources\simple.is");
 
-			string mainfunc = "int main(int argc, char** argv) {";
+			string mainfunc = "int main(int argc, char** argv)\n{";
 
 			foreach (IStatement statement in iss.statements) {
 				if (statement is VariableDeclaration) {
@@ -33,11 +33,11 @@ namespace isc {
 								type = "unsigned long long";
 							}
 						} else {
-							if (it.Max <= sbyte.MaxValue || it.Min >= sbyte.MinValue) {
+							if (it.Max <= sbyte.MaxValue && it.Min >= sbyte.MinValue) {
 								type = "char";
-							} else if (it.Max < short.MaxValue || it.Min >= short.MinValue) {
+							} else if (it.Max <= short.MaxValue && it.Min >= short.MinValue) {
 								type = "short";
-							} else if (it.Max < int.MaxValue || it.Min >= int.MinValue) {
+							} else if (it.Max <= int.MaxValue && it.Min >= int.MinValue) {
 								type = "int";
 							} else {
 								type = "long long";
@@ -47,15 +47,7 @@ namespace isc {
 						throw new Exception("Unknown type!");
 					}
 					string name = vdecl.Name;
-					string initializer = "";
-
-					if (vdecl.Initializer is IntegerLiteral) {
-						initializer = (vdecl.Initializer as IntegerLiteral).Value.ToString();
-					} else if (vdecl.Initializer is Referencer) {
-						initializer = (vdecl.Initializer as Referencer).Name;
-					} else {
-						throw new Exception("Unknown expression!");
-					}
+					string initializer = TranslateExpression(vdecl.Initializer);
 					mainfunc += "\n\t" + type + " " + name + " = " + initializer + ";";
 				}
 			}
@@ -67,5 +59,21 @@ namespace isc {
 			Console.ReadKey();
 
         }
+
+		private static string TranslateExpression(IExpression expression) {
+			string initializer = "";
+
+			if (expression is IntegerLiteral) {
+				initializer = (expression as IntegerLiteral).Value.ToString();
+			} else if (expression is Referencer) {
+				initializer = (expression as Referencer).Name;
+			} else if (expression is FunctionCall) {
+				FunctionCall fc = expression as FunctionCall;
+				initializer = TranslateExpression(fc.LeftSideExpression) + "(" + string.Join(", ", fc.Parms.Select(x=>TranslateExpression(x)).ToArray()) + ")";
+			} else {
+				throw new Exception("Unknown expression!");
+			}
+			return initializer;
+		}
     }
 }

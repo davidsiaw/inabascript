@@ -1,11 +1,13 @@
 
 using System.Collections.Generic;
+using ParameterList = System.Collections.Generic.List<InabaScript.IExpression>;
 
 COMPILER InabaScript
 
 /* Add auxiliary methods and declaration here. */
 
 public static InabaScriptSource iss;
+
 
 /* If you want your generated compiler case insensitive add the */
 /* keyword IGNORECASE here. */
@@ -29,13 +31,14 @@ openParens = '('.
 closeParens = ')'.
 openBracket = '['.
 closeBracket = ']'.
+negative = '-'.
 validStringChars = letter + digit + "!£:$^&*()_+-=,./;[]©®<>?#:@~{}|".
 
 TOKENS
 /* Add token declarations here. */
 ident = validInitialIdentChars {validSubsequentIdentChars}.
 type = validInitialTypeChars {validSubsequentIdentChars}.
-integer = digit {digit}.
+integer = [negative] digit {digit}.
 float = digit {digit} '.' digit {digit}.
 utf8bom = '\u00ef' '\u00bb' '\u00bf'.
 validStringLiteral = '"' { validStringChars | ('\\' ('n'|'r'|'r'|'\\') ) } '"'.
@@ -75,10 +78,36 @@ Referencer<ref Scope scope, out IExpression expr> =				(. string identifier; .)
 Identifier<out identifier>										(. expr = new Referencer(scope, identifier); .)
 .
 
-Expression<ref Scope scope, out IExpression expr> =				(. expr = null; .)
-(
-IntegerLiteral<out expr> |
+ParameterList<ref Scope scope, ParameterList list> =				(. IExpression expr; .)
+PrimaryExpression<ref scope, out expr>								(. list.Add(expr); .)
+{
+	"," PrimaryExpression<ref scope, out expr>						(. list.Add(expr); .)
+}
+.
+
+Invocation<ref Scope scope, IExpression lhs, out IExpression expr> =(. expr = null; .)
+																	(. List<IExpression> list = new List<IExpression>(); .)
+"("
+	[ ParameterList<ref scope, list> ]
+")"
+[
+	Invocation<ref scope, lhs, out expr>
+]
+																	(. expr = new FunctionCall(lhs, list); .)
+.
+
+Evaluatable<ref Scope scope, out IExpression expr> =			(. expr = null; .)
 Referencer<ref scope, out expr>
+[
+	Invocation<ref scope, expr, out expr>
+]
+.
+
+
+PrimaryExpression<ref Scope scope, out IExpression expr> =		(. expr = null; .)
+(
+	IntegerLiteral<out expr> |
+	Evaluatable<ref scope, out expr>
 )
 .
 
@@ -87,7 +116,7 @@ VariableDeclaration<ref Scope scope, out IStatement vardecl> =	(. string identif
 "var" 
 Identifier<out identifier>
 "=" 
-Expression<ref scope, out expr>
+PrimaryExpression<ref scope, out expr>
 																(. vardecl = new VariableDeclaration(identifier, expr); .)
 																(. scope = new Scope(vardecl as VariableDeclaration, scope); .)
 .
@@ -99,11 +128,11 @@ VariableDeclaration<ref scope, out statement>
 .
 
 /* InabaScript, like JavaScript is just a bunch of statements */
-InabaScript =													(. Scope scope = null; .)
+InabaScript =													(. Scope scope = iss.intrinsics; .)
 																(. IStatement stmt; .)
 [utf8bom]
 {
-SYNC Statement<ref scope, out stmt> ";"							(. iss.statements.Add(stmt); .)
+	SYNC Statement<ref scope, out stmt> ";"						(. iss.statements.Add(stmt); .)
 }
 .
 

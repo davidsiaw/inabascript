@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ParameterList = System.Collections.Generic.List<InabaScript.IExpression>;
 
 using System;
 
@@ -15,7 +16,7 @@ namespace InabaScript {
 	const int _utf8bom = 5;
 	const int _validStringLiteral = 6;
 	const int _colon = 7;
-	const int maxT = 11;
+	const int maxT = 14;
 
 		const bool T = true;
 		const bool x = false;
@@ -26,6 +27,7 @@ namespace InabaScript {
 		static int errDist = minErrDist;
 
 	public static InabaScriptSource iss;
+
 
 /* If you want your generated compiler case insensitive add the */
 /* keyword IGNORECASE here. */
@@ -98,22 +100,55 @@ namespace InabaScript {
 		expr = new Referencer(scope, identifier); 
 	}
 
-	static void Expression(ref Scope scope, out IExpression expr) {
+	static void ParameterList(ref Scope scope, ParameterList list) {
+		IExpression expr; 
+		PrimaryExpression(ref scope, out expr);
+		list.Add(expr); 
+		while (la.kind == 8) {
+			Get();
+			PrimaryExpression(ref scope, out expr);
+			list.Add(expr); 
+		}
+	}
+
+	static void PrimaryExpression(ref Scope scope, out IExpression expr) {
 		expr = null; 
 		if (la.kind == 3) {
 			IntegerLiteral(out expr);
 		} else if (la.kind == 1) {
-			Referencer(ref scope, out expr);
-		} else SynErr(12);
+			Evaluatable(ref scope, out expr);
+		} else SynErr(15);
+	}
+
+	static void Invocation(ref Scope scope, IExpression lhs, out IExpression expr) {
+		expr = null; 
+		List<IExpression> list = new List<IExpression>(); 
+		Expect(9);
+		if (la.kind == 1 || la.kind == 3) {
+			ParameterList(ref scope, list);
+		}
+		Expect(10);
+		if (la.kind == 9) {
+			Invocation(ref scope, lhs, out expr);
+		}
+		expr = new FunctionCall(lhs, list); 
+	}
+
+	static void Evaluatable(ref Scope scope, out IExpression expr) {
+		expr = null; 
+		Referencer(ref scope, out expr);
+		if (la.kind == 9) {
+			Invocation(ref scope, expr, out expr);
+		}
 	}
 
 	static void VariableDeclaration(ref Scope scope, out IStatement vardecl) {
 		string identifier; 
 		IExpression expr; 
-		Expect(8);
+		Expect(11);
 		Identifier(out identifier);
-		Expect(9);
-		Expression(ref scope, out expr);
+		Expect(12);
+		PrimaryExpression(ref scope, out expr);
 		vardecl = new VariableDeclaration(identifier, expr); 
 		scope = new Scope(vardecl as VariableDeclaration, scope); 
 	}
@@ -123,15 +158,15 @@ namespace InabaScript {
 	}
 
 	static void InabaScript() {
-		Scope scope = null; 
+		Scope scope = iss.intrinsics; 
 		IStatement stmt; 
 		if (la.kind == 5) {
 			Get();
 		}
-		while (la.kind == 8) {
-			while (!(la.kind == 0 || la.kind == 8)) {SynErr(13); Get();}
+		while (la.kind == 11) {
+			while (!(la.kind == 0 || la.kind == 11)) {SynErr(16); Get();}
 			Statement(ref scope, out stmt);
-			Expect(10);
+			Expect(13);
 			iss.statements.Add(stmt); 
 		}
 	}
@@ -149,7 +184,7 @@ namespace InabaScript {
 		}
 
 		static bool[,] set = {
-			{T,x,x,x, x,x,x,x, T,x,x,x, x}
+			{T,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x}
 
 		};
 	} // end Parser
@@ -170,12 +205,15 @@ namespace InabaScript {
 			case 5: s = "utf8bom expected"; break;
 			case 6: s = "validStringLiteral expected"; break;
 			case 7: s = "colon expected"; break;
-			case 8: s = "\"var\" expected"; break;
-			case 9: s = "\"=\" expected"; break;
-			case 10: s = "\";\" expected"; break;
-			case 11: s = "??? expected"; break;
-			case 12: s = "invalid Expression"; break;
-			case 13: s = "this symbol not expected in InabaScript"; break;
+			case 8: s = "\",\" expected"; break;
+			case 9: s = "\"(\" expected"; break;
+			case 10: s = "\")\" expected"; break;
+			case 11: s = "\"var\" expected"; break;
+			case 12: s = "\"=\" expected"; break;
+			case 13: s = "\";\" expected"; break;
+			case 14: s = "??? expected"; break;
+			case 15: s = "invalid PrimaryExpression"; break;
+			case 16: s = "this symbol not expected in InabaScript"; break;
 
 				default: s = "error " + n; break;
 			}

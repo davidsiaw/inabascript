@@ -2,4 +2,5 @@ var a = 10;
 var b = a;
 var c = 2412037;
 var d = 2412231312037;
-var e = 788;
+var e = -788;
+var version = getversion(23);
