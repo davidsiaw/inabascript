@@ -239,8 +239,7 @@ namespace InabaScript
 
         public InabaScriptSource(string filename)
         {
-			intrinsics = new Scope(new FunctionDeclaration("printversion", new NothingType(), new IType[0]), intrinsics);
-            intrinsics = new Scope(new FunctionDeclaration("getversion", new IntegerType(0, uint.MaxValue), new IType[] { new IntegerType(0,100) }), intrinsics);
+
 
             Scanner.Init(filename);
 			Parser.iss = this;
