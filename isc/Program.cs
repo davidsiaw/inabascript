@@ -139,6 +139,10 @@ namespace isc {
                                 }
                             }
                         }
+                        else if (vdecl.Initializer.Type is StringType)
+                        {
+                            type = "const char*";
+                        }
                         else
                         {
                             throw new Exception("Unknown type!");
@@ -164,6 +168,10 @@ namespace isc {
                 if (expression is IntegerLiteral)
                 {
                     initializer = (expression as IntegerLiteral).Value.ToString();
+                }
+                else if (expression is StringLiteral)
+                {
+                    initializer = "\"" + (expression as StringLiteral).Value + "\"";
                 }
                 else if (expression is Referencer)
                 {

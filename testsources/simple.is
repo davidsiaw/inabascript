@@ -3,3 +3,4 @@ var b = a;
 var c = 2412037;
 var d = 2412231312037;
 var e = -788;
+var f = "hello world";

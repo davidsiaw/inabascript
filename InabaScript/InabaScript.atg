@@ -32,7 +32,7 @@ closeParens = ')'.
 openBracket = '['.
 closeBracket = ']'.
 negative = '-'.
-validStringChars = letter + digit + "!£:$^&*()_+-=,./;[]©®<>?#:@~{}|".
+validStringChars = letter + digit + "!£:$^&*()_+-=,./;[]©®<>?#:@~{}| " + tab.
 
 TOKENS
 /* Add token declarations here. */
@@ -74,6 +74,10 @@ IntegerLiteral<out IExpression integer> =
 integer															(. integer = new IntegerLiteral(long.Parse(t.val)); .)
 .
 
+StringLiteral<out IExpression str> = 
+validStringLiteral												(. str = new StringLiteral(t.val.Substring(1, t.val.Length-2)); .)
+.
+
 Referencer<ref Scope scope, out IExpression expr> =				(. string identifier; .)
 Identifier<out identifier>										(. expr = new Referencer(scope, identifier); .)
 .
@@ -107,6 +111,7 @@ Referencer<ref scope, out expr>
 PrimaryExpression<ref Scope scope, out IExpression expr> =		(. expr = null; .)
 (
 	IntegerLiteral<out expr> |
+	StringLiteral<out expr> |
 	Evaluatable<ref scope, out expr>
 )
 .

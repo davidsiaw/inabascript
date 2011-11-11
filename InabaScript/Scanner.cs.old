@@ -279,7 +279,7 @@ namespace InabaScript {
 			case 9:
 				{t.kind = 5; break;}
 			case 10:
-				if ((ch == '!' || ch >= '#' && ch <= '$' || ch == '&' || ch >= '(' && ch <= '[' || ch >= ']' && ch <= '_' || ch >= 'a' && ch <= '~' || ch == 163 || ch == 169 || ch == 174)) {AddCh(); goto case 10;}
+				if ((ch == 9 || ch >= ' ' && ch <= '!' || ch >= '#' && ch <= '$' || ch == '&' || ch >= '(' && ch <= '[' || ch >= ']' && ch <= '_' || ch >= 'a' && ch <= '~' || ch == 163 || ch == 169 || ch == 174)) {AddCh(); goto case 10;}
 				else if (ch == '"') {AddCh(); goto case 12;}
 				else if (ch == 92) {AddCh(); goto case 11;}
 				else {t.kind = noSym; break;}

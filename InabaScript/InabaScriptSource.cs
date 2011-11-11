@@ -66,6 +66,23 @@ namespace InabaScript
 		}
 	}
 
+    public class StringType : IType
+    {
+        public StringType()
+        {
+        }
+
+        public bool IsAssignableTo(IType type)
+        {
+            if (type is StringType)
+            {
+                return true;
+            }
+            return false;
+        }
+    }
+
+
 	public class IntegerLiteral : IExpression {
 		IntegerType type;
 		decimal value;
@@ -91,6 +108,28 @@ namespace InabaScript
 
 		#endregion
 	}
+
+    public class StringLiteral : IExpression
+    {
+        string str;
+        public StringLiteral(string str)
+        {
+            this.str = str;
+        }
+
+        public IType Type
+        {
+            get { return new StringType(); }
+        }
+
+        public string Value
+        {
+            get
+            {
+                return str;
+            }
+        }
+    }
 
 	public class VariableDeclaration : IStatement, IDeclaration {
 
@@ -143,6 +182,10 @@ namespace InabaScript
 		}
 	}
 
+    public class Function
+    {
+    }
+
 	public class FunctionDeclaration : IDeclaration {
 
 		string name;
@@ -160,6 +203,7 @@ namespace InabaScript
 			get { return functionType; }
 		}
 	}
+
 
 	public class FunctionCall : IExpression {
 		IExpression lhs;

@@ -94,6 +94,11 @@ namespace InabaScript {
 		integer = new IntegerLiteral(long.Parse(t.val)); 
 	}
 
+	static void StringLiteral(out IExpression str) {
+		Expect(6);
+		str = new StringLiteral(t.val.Substring(1, t.val.Length-2)); 
+	}
+
 	static void Referencer(ref Scope scope, out IExpression expr) {
 		string identifier; 
 		Identifier(out identifier);
@@ -115,6 +120,8 @@ namespace InabaScript {
 		expr = null; 
 		if (la.kind == 3) {
 			IntegerLiteral(out expr);
+		} else if (la.kind == 6) {
+			StringLiteral(out expr);
 		} else if (la.kind == 1) {
 			Evaluatable(ref scope, out expr);
 		} else SynErr(15);
@@ -124,7 +131,7 @@ namespace InabaScript {
 		expr = null; 
 		List<IExpression> list = new List<IExpression>(); 
 		Expect(9);
-		if (la.kind == 1 || la.kind == 3) {
+		if (la.kind == 1 || la.kind == 3 || la.kind == 6) {
 			ParameterList(ref scope, list);
 		}
 		Expect(10);
