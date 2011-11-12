@@ -98,17 +98,17 @@ namespace InabaScript {
 		const char EOL = '\n';
 		const int eofSym = 0; /* pdt */
 		const int charSetSize = 256;
-	const int maxT = 14;
-	const int noSym = 14;
+	const int maxT = 17;
+	const int noSym = 17;
 	static short[] start = {
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 	  0,  0, 10,  0,  0,  0,  0,  0, 16, 17,  0,  0, 15,  3,  0,  0,
-	 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 13, 19,  0, 18,  0,  0,
+	 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 13, 21,  0, 20,  0,  0,
 	  0,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,
 	  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  0,  0,  0,  0,  0,
 	  0,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,
-	  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  0,  0,  0,  0,  0,
+	  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1, 18,  0, 19,  0,  0,
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
@@ -236,7 +236,8 @@ namespace InabaScript {
 
 		static void CheckLiteral() {
 			switch (t.val) {
-			case "var": t.kind = 11; break;
+			case "function": t.kind = 11; break;
+			case "var": t.kind = 14; break;
 			default: break;
 		}
 		}
@@ -304,6 +305,10 @@ namespace InabaScript {
 				{t.kind = 12; break;}
 			case 19:
 				{t.kind = 13; break;}
+			case 20:
+				{t.kind = 15; break;}
+			case 21:
+				{t.kind = 16; break;}
 
 			}
 			t.val = new String(tval, 0, tlen);

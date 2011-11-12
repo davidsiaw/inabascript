@@ -16,7 +16,7 @@ namespace InabaScript {
 	const int _utf8bom = 5;
 	const int _validStringLiteral = 6;
 	const int _colon = 7;
-	const int maxT = 14;
+	const int maxT = 17;
 
 		const bool T = true;
 		const bool x = false;
@@ -122,16 +122,16 @@ namespace InabaScript {
 			IntegerLiteral(out expr);
 		} else if (la.kind == 6) {
 			StringLiteral(out expr);
-		} else if (la.kind == 1) {
+		} else if (la.kind == 1 || la.kind == 11) {
 			Evaluatable(ref scope, out expr);
-		} else SynErr(15);
+		} else SynErr(18);
 	}
 
 	static void Invocation(ref Scope scope, IExpression lhs, out IExpression expr) {
 		expr = null; 
 		List<IExpression> list = new List<IExpression>(); 
 		Expect(9);
-		if (la.kind == 1 || la.kind == 3 || la.kind == 6) {
+		if (StartOf(1)) {
 			ParameterList(ref scope, list);
 		}
 		Expect(10);
@@ -143,25 +143,49 @@ namespace InabaScript {
 
 	static void Evaluatable(ref Scope scope, out IExpression expr) {
 		expr = null; 
-		Referencer(ref scope, out expr);
+		if (la.kind == 1) {
+			Referencer(ref scope, out expr);
+		} else if (la.kind == 11) {
+			FunctionDeclaration(ref scope, out expr);
+		} else SynErr(19);
 		if (la.kind == 9) {
 			Invocation(ref scope, expr, out expr);
 		}
 	}
 
-	static void VariableDeclaration(ref Scope scope, out IStatement vardecl) {
+	static void FunctionDeclaration(ref Scope scope, out IExpression fundecl) {
 		string identifier; 
-		IExpression expr; 
+		List<string> parameternames = new List<string>(); 
+		IStatement statement; 
 		Expect(11);
-		Identifier(out identifier);
+		Expect(9);
+		Expect(10);
+		Function func = new Function("", parameternames); 
+		Scope childscope = new Scope(func, scope); 
 		Expect(12);
-		PrimaryExpression(ref scope, out expr);
-		vardecl = new VariableDeclaration(identifier, expr); 
-		scope = new Scope(vardecl as VariableDeclaration, scope); 
+		while (la.kind == 14) {
+			Statement(ref childscope, out statement);
+			func.Add(statement); 
+		}
+		Expect(13);
+		fundecl = func; 
 	}
 
 	static void Statement(ref Scope scope, out IStatement statement) {
+		statement = null; 
 		VariableDeclaration(ref scope, out statement);
+		Expect(16);
+	}
+
+	static void VariableDeclaration(ref Scope scope, out IStatement vardecl) {
+		string identifier; 
+		IExpression expr; 
+		Expect(14);
+		Identifier(out identifier);
+		Expect(15);
+		PrimaryExpression(ref scope, out expr);
+		vardecl = new VariableDeclaration(identifier, expr); 
+		scope = new Scope(vardecl as VariableDeclaration, scope); 
 	}
 
 	static void InabaScript() {
@@ -170,10 +194,9 @@ namespace InabaScript {
 		if (la.kind == 5) {
 			Get();
 		}
-		while (la.kind == 11) {
-			while (!(la.kind == 0 || la.kind == 11)) {SynErr(16); Get();}
+		while (la.kind == 14) {
+			while (!(la.kind == 0 || la.kind == 14)) {SynErr(20); Get();}
 			Statement(ref scope, out stmt);
-			Expect(13);
 			iss.statements.Add(stmt); 
 		}
 	}
@@ -191,7 +214,8 @@ namespace InabaScript {
 		}
 
 		static bool[,] set = {
-			{T,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x}
+			{T,x,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x},
+		{x,T,x,T, x,x,T,x, x,x,x,T, x,x,x,x, x,x,x}
 
 		};
 	} // end Parser
@@ -215,12 +239,16 @@ namespace InabaScript {
 			case 8: s = "\",\" expected"; break;
 			case 9: s = "\"(\" expected"; break;
 			case 10: s = "\")\" expected"; break;
-			case 11: s = "\"var\" expected"; break;
-			case 12: s = "\"=\" expected"; break;
-			case 13: s = "\";\" expected"; break;
-			case 14: s = "??? expected"; break;
-			case 15: s = "invalid PrimaryExpression"; break;
-			case 16: s = "this symbol not expected in InabaScript"; break;
+			case 11: s = "\"function\" expected"; break;
+			case 12: s = "\"{\" expected"; break;
+			case 13: s = "\"}\" expected"; break;
+			case 14: s = "\"var\" expected"; break;
+			case 15: s = "\"=\" expected"; break;
+			case 16: s = "\";\" expected"; break;
+			case 17: s = "??? expected"; break;
+			case 18: s = "invalid PrimaryExpression"; break;
+			case 19: s = "invalid Evaluatable"; break;
+			case 20: s = "this symbol not expected in InabaScript"; break;
 
 				default: s = "error " + n; break;
 			}

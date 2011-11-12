@@ -138,6 +138,11 @@ namespace InabaScript
 		public VariableDeclaration(string name, IExpression initializer) {
 			this.name = name;
 			this.initializer = initializer;
+
+            if (initializer.Type is NothingType)
+            {
+                throw new Exception("Attempted to initialize a variable with nothing type");
+            }
 		}
 
 		public IExpression Initializer { get { return initializer; } }
@@ -152,11 +157,11 @@ namespace InabaScript
 		}
 	}
 
-	public class FunctionType : IType {
+	public class StaticFunctionType : IType {
 
 		IType returntype;
 		IType[] parameterTypes;
-		public FunctionType(IType returntype, IType[] parameterTypes) {
+		public StaticFunctionType(IType returntype, IType[] parameterTypes) {
 			this.returntype = returntype;
 			this.parameterTypes = parameterTypes;
 		}
@@ -165,8 +170,8 @@ namespace InabaScript
 		public IType[] ParameterTypes { get { return parameterTypes; } }
 
 		public bool IsAssignableTo(IType type) {
-			if (type is FunctionType) {
-				FunctionType ft = type as FunctionType;
+			if (type is StaticFunctionType) {
+				StaticFunctionType ft = type as StaticFunctionType;
 				if (returntype.IsAssignableTo(ft.ReturnType)) {
 					if (parameterTypes.Length <= ft.parameterTypes.Length) {
 						for (int i = 0; i < parameterTypes.Length; i++) {
@@ -182,17 +187,65 @@ namespace InabaScript
 		}
 	}
 
-    public class Function
+    public class FunctionType : IType
     {
+        
+        public bool IsAssignableTo(IType type)
+        {
+            throw new NotImplementedException();
+
+        }
+
+        public IType GetCalledType()
+        {
+            throw new NotImplementedException();
+        }
     }
 
-	public class FunctionDeclaration : IDeclaration {
+
+    public class Function : IExpression, IDeclaration
+    {
+        string name;
+        public Function(string name, List<string> parameternames)
+        {
+            this.name = name;
+        }
+
+        public void Add(IStatement statement)
+        {
+            statements.Add(statement);
+        }
+
+        List<IStatement> statements = new List<IStatement>();
+
+        public List<IStatement> Statements
+        {
+            get
+            {
+                return statements;
+            }
+        }
+
+        public string Name
+        {
+            get { return name; }
+        }
+
+        public IType Type
+        {
+            get {
+                return new StaticFunctionType(new NothingType(), new IType[0]);
+            }
+        }
+    }
+
+	public class ForeignFunctionDeclaration : IDeclaration {
 
 		string name;
 		IType functionType;
-		public FunctionDeclaration(string name, IType returntype, IType[] parameterTypes) {
+		public ForeignFunctionDeclaration(string name, IType returntype, IType[] parameterTypes) {
 			this.name = name;
-			this.functionType = new FunctionType(returntype, parameterTypes);
+			this.functionType = new StaticFunctionType(returntype, parameterTypes);
 		}
 
 		public string Name {
@@ -209,10 +262,12 @@ namespace InabaScript
 		IExpression lhs;
 		List<IExpression> parms;
 		public FunctionCall(IExpression lhs, List<IExpression> parms) {
-			if (!(lhs.Type is FunctionType)) {
+
+
+			if (!(lhs.Type is StaticFunctionType)) {
 				throw new Exception(lhs + " is not a function!");
 			}
-			FunctionType type = lhs.Type as FunctionType;
+			StaticFunctionType type = lhs.Type as StaticFunctionType;
 			if (type.ParameterTypes.Length != parms.Count) {
 				throw new Exception("not enough/too many parameters!");
 			}
@@ -238,7 +293,7 @@ namespace InabaScript
 		}
 
 		public IType Type {
-			get { return (lhs.Type as FunctionType).ReturnType; }
+			get { return (lhs.Type as StaticFunctionType).ReturnType; }
 		}
 	}
 

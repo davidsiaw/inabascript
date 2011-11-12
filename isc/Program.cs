@@ -86,78 +86,115 @@ namespace isc {
 
             private void WriteSourceFile(string main)
             {
+                List<string> functions = new List<string>();
+
                 string mainfunc = "int main(int argc, char** argv)\n{";
 
-                foreach (IStatement statement in iss.statements)
-                {
-                    if (statement is VariableDeclaration)
-                    {
-                        VariableDeclaration vdecl = (statement as VariableDeclaration);
-                        string type = "";
-                        string suffix = "";
-                        if (vdecl.Initializer.Type is IntegerType)
-                        {
-                            IntegerType it = vdecl.Initializer.Type as IntegerType;
-                            if (it.Min > 0)
-                            {
-                                if (it.Max <= byte.MaxValue)
-                                {
-                                    type = "unsigned char";
-                                }
-                                else if (it.Max <= ushort.MaxValue)
-                                {
-                                    type = "unsigned short";
-                                }
-                                else if (it.Max <= uint.MaxValue)
-                                {
-                                    type = "unsigned int";
-                                }
-                                else
-                                {
-                                    type = "unsigned long long";
-                                    suffix = "ULL";
-                                }
-                            }
-                            else
-                            {
-                                if (it.Max <= sbyte.MaxValue && it.Min >= sbyte.MinValue)
-                                {
-                                    type = "char";
-                                }
-                                else if (it.Max <= short.MaxValue && it.Min >= short.MinValue)
-                                {
-                                    type = "short";
-                                }
-                                else if (it.Max <= int.MaxValue && it.Min >= int.MinValue)
-                                {
-                                    type = "int";
-                                }
-                                else
-                                {
-                                    type = "long long";
-                                    suffix = "LL";
-                                }
-                            }
-                        }
-                        else if (vdecl.Initializer.Type is StringType)
-                        {
-                            type = "const char*";
-                        }
-                        else
-                        {
-                            throw new Exception("Unknown type!");
-                        }
-                        string name = vdecl.Name;
-                        string initializer = TranslateExpression(vdecl.Initializer);
-                        mainfunc += "\n\t" + type + " " + name + " = " + initializer + suffix +  ";";
-                    }
-                }
+                WriteStatementList(functions, ref mainfunc, iss.statements);
 
                 mainfunc += "\n\treturn 0;\n}\n";
 
                 using (StreamWriter sw = new StreamWriter(main))
                 {
+                    functions.ForEach(x => sw.WriteLine(x));
                     sw.WriteLine(mainfunc);
+                }
+            }
+
+            private void WriteStatementList(List<string> functions, ref string funcstr, List<IStatement> statements)
+            {
+                foreach (IStatement statement in statements)
+                {
+                    if (statement is VariableDeclaration)
+                    {
+                        VariableDeclaration vdecl = (statement as VariableDeclaration);
+
+                        if (vdecl.Initializer.Type is StaticFunctionType)
+                        {
+
+                            StaticFunctionType sft = vdecl.Initializer.Type as StaticFunctionType;
+                            string returntype;
+                            string suffix;
+                            GetCType(sft.ReturnType, out returntype, out suffix);
+
+                            string funcDef = returntype + " " + vdecl.Name + "(" + ")\n";
+                            funcDef += "{";
+                            WriteStatementList(functions, ref funcDef, (vdecl.Initializer as Function).Statements);
+                            funcDef += "\n}\n";
+                            functions.Add(funcDef);
+
+                        }
+                        else
+                        {
+                            string type;
+                            string suffix;
+                            GetCType(vdecl.Initializer.Type, out type, out suffix);
+                            string name = vdecl.Name;
+                            string initializer = TranslateExpression(vdecl.Initializer);
+                            funcstr += "\n\t" + type + " " + name + " = " + initializer + suffix + ";";
+                        }
+                    }
+                }
+            }
+
+            private static void GetCType(IType t, out string type, out string suffix)
+            {
+                suffix = "";
+                if (t is IntegerType)
+                {
+                    IntegerType it = t as IntegerType;
+                    if (it.Min > 0)
+                    {
+                        if (it.Max <= byte.MaxValue)
+                        {
+                            type = "unsigned char";
+                        }
+                        else if (it.Max <= ushort.MaxValue)
+                        {
+                            type = "unsigned short";
+                        }
+                        else if (it.Max <= uint.MaxValue)
+                        {
+                            type = "unsigned int";
+                        }
+                        else
+                        {
+                            type = "unsigned long long";
+                            suffix = "ULL";
+                        }
+                    }
+                    else
+                    {
+                        if (it.Max <= sbyte.MaxValue && it.Min >= sbyte.MinValue)
+                        {
+                            type = "char";
+                        }
+                        else if (it.Max <= short.MaxValue && it.Min >= short.MinValue)
+                        {
+                            type = "short";
+                        }
+                        else if (it.Max <= int.MaxValue && it.Min >= int.MinValue)
+                        {
+                            type = "int";
+                        }
+                        else
+                        {
+                            type = "long long";
+                            suffix = "LL";
+                        }
+                    }
+                }
+                else if (t is StringType)
+                {
+                    type = "const char*";
+                }
+                else if (t is NothingType)
+                {
+                    type = "void";
+                }
+                else
+                {
+                    throw new Exception("Unknown type!");
                 }
             }
 

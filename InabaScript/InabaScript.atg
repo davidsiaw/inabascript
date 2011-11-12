@@ -32,7 +32,8 @@ closeParens = ')'.
 openBracket = '['.
 closeBracket = ']'.
 negative = '-'.
-validStringChars = letter + digit + "!£:$^&*()_+-=,./;[]©®<>?#:@~{}| " + tab.
+space = " ".
+validStringChars = letter + digit + "!£:$^&*()_+-=,./;[]©®<>?#:@~{}|" + space + tab.
 
 TOKENS
 /* Add token declarations here. */
@@ -100,11 +101,30 @@ Invocation<ref Scope scope, IExpression lhs, out IExpression expr> =(. expr = nu
 																	(. expr = new FunctionCall(lhs, list); .)
 .
 
-Evaluatable<ref Scope scope, out IExpression expr> =			(. expr = null; .)
-Referencer<ref scope, out expr>
+Evaluatable<ref Scope scope, out IExpression expr> =				(. expr = null; .)
+(
+	Referencer<ref scope, out expr> |
+	FunctionDeclaration<ref scope, out expr>
+)
 [
 	Invocation<ref scope, expr, out expr>
 ]
+.
+
+
+FunctionDeclaration<ref Scope scope, out IExpression fundecl> =	(. string identifier; .)
+																(. List<string> parameternames = new List<string>(); .)
+																(. IStatement statement; .)
+"function"
+"("
+")"
+																(. Function func = new Function("", parameternames); .)
+																(. Scope childscope = new Scope(func, scope); .)
+"{"
+{
+	Statement<ref childscope, out statement>					(. func.Add(statement); .)
+}
+"}"																(. fundecl = func; .)
 .
 
 
@@ -128,8 +148,11 @@ PrimaryExpression<ref scope, out expr>
 
 
 
-Statement<ref Scope scope, out IStatement statement> =
-VariableDeclaration<ref scope, out statement>
+Statement<ref Scope scope, out IStatement statement> =			(. statement = null; .)
+
+(
+	(VariableDeclaration<ref scope, out statement> ";")
+)
 .
 
 /* InabaScript, like JavaScript is just a bunch of statements */
@@ -137,7 +160,7 @@ InabaScript =													(. Scope scope = iss.intrinsics; .)
 																(. IStatement stmt; .)
 [utf8bom]
 {
-	SYNC Statement<ref scope, out stmt> ";"						(. iss.statements.Add(stmt); .)
+	SYNC Statement<ref scope, out stmt>							(. iss.statements.Add(stmt); .)
 }
 .
 
