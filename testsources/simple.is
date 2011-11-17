@@ -8,3 +8,26 @@ var f = "hello world";
 var test = function () {
 	var x = 123;
 };
+
+var outerfunc = function () {
+	var innerfunc = function() {
+		var x = 100;
+	};
+};
+
+var getnum = function () {
+	return function() { return 9; };
+};
+
+var funcptr = outerfunc;
+var anotherfptr = getnum();
+
+var functioninfunction = function () {
+	return function() { return function() {return 0;}; };
+}();
+
+var ff = functioninfunction();
+
+var fm = ff();
+
+funcptr();

@@ -84,24 +84,38 @@ namespace isc {
                 }
             }
 
+
+
+            List<string> functions = new List<string>();
+            Dictionary<StaticFunctionType, KeyValuePair<string, string>> funcTypeDefs = new Dictionary<StaticFunctionType, KeyValuePair<string, string>>();
+
             private void WriteSourceFile(string main)
             {
-                List<string> functions = new List<string>();
-
                 string mainfunc = "int main(int argc, char** argv)\n{";
 
-                WriteStatementList(functions, ref mainfunc, iss.statements);
+                WriteStatementList("", ref mainfunc, iss.statements);
 
                 mainfunc += "\n\treturn 0;\n}\n";
 
                 using (StreamWriter sw = new StreamWriter(main))
                 {
+                    sw.WriteLine("// Created from " + progname + ".is");
+                    sw.WriteLine("// by InabaScriptCompiler");
+                    sw.WriteLine("// on " + DateTime.Now + " " + TimeZone.CurrentTimeZone.StandardName);
+                    sw.WriteLine();
+
+                    foreach (var v in funcTypeDefs.Values)
+                    {
+                        sw.WriteLine("typedef {0};", v.Value);
+                    }
+                    sw.WriteLine("");
+
                     functions.ForEach(x => sw.WriteLine(x));
                     sw.WriteLine(mainfunc);
                 }
             }
 
-            private void WriteStatementList(List<string> functions, ref string funcstr, List<IStatement> statements)
+            private void WriteStatementList(string outerfuncname, ref string funcstr, List<IStatement> statements)
             {
                 foreach (IStatement statement in statements)
                 {
@@ -109,80 +123,99 @@ namespace isc {
                     {
                         VariableDeclaration vdecl = (statement as VariableDeclaration);
 
-                        if (vdecl.Initializer.Type is StaticFunctionType)
+                        if (vdecl.Initializer is Function)
                         {
-
-                            StaticFunctionType sft = vdecl.Initializer.Type as StaticFunctionType;
-                            string returntype;
-                            string suffix;
-                            GetCType(sft.ReturnType, out returntype, out suffix);
-
-                            string funcDef = returntype + " " + vdecl.Name + "(" + ")\n";
-                            funcDef += "{";
-                            WriteStatementList(functions, ref funcDef, (vdecl.Initializer as Function).Statements);
-                            funcDef += "\n}\n";
-                            functions.Add(funcDef);
-
+                            MakeFunction(vdecl.Name, outerfuncname, vdecl.Initializer as Function);
                         }
                         else
                         {
                             string type;
-                            string suffix;
-                            GetCType(vdecl.Initializer.Type, out type, out suffix);
+                            GetCType(vdecl.Initializer.Type, out type);
                             string name = vdecl.Name;
-                            string initializer = TranslateExpression(vdecl.Initializer);
-                            funcstr += "\n\t" + type + " " + name + " = " + initializer + suffix + ";";
+                            string initializer = TranslateExpression(vdecl.Initializer, outerfuncname);
+                            funcstr += "\n\t" + type + " " + name + " = " + initializer + ";";
                         }
+                    }
+                    else if (statement is Invoker)
+                    {
+                        funcstr += "\n\t" + TranslateExpression((statement as Invoker).FuncCall, outerfuncname) + ";";
+                    }
+                    else if (statement is ReturnStatement)
+                    {
+                        ReturnStatement rs = statement as ReturnStatement;
+                        funcstr += "\n\treturn " + TranslateExpression(rs.Expression, outerfuncname) + ";";
+                    }
+                    else
+                    {
+                        throw new Exception("unknown statement!");
                     }
                 }
             }
 
-            private static void GetCType(IType t, out string type, out string suffix)
+            
+
+            private void MakeFunction(string funcname, string outerfuncname, Function func)
             {
-                suffix = "";
+                StaticFunctionType sft = func.Type as StaticFunctionType;
+                string returntype;
+                GetCType(sft.ReturnType, out returntype);
+
+                string funcDef = returntype + " " + funcname + outerfuncname + "(" + ")\n";
+                funcDef += "{";
+                WriteStatementList("_in_" + GetFunctionName(funcname, outerfuncname), ref funcDef, func.Statements);
+                funcDef += "\n}\n";
+                functions.Add(funcDef);
+            }
+
+            private static string GetFunctionName(string funcname, string outerfuncname)
+            {
+                return funcname + outerfuncname;
+            }
+
+            private void GetCType(IType t, out string type)
+            {
                 if (t is IntegerType)
                 {
                     IntegerType it = t as IntegerType;
-                    if (it.Min > 0)
-                    {
-                        if (it.Max <= byte.MaxValue)
-                        {
-                            type = "unsigned char";
-                        }
-                        else if (it.Max <= ushort.MaxValue)
-                        {
-                            type = "unsigned short";
-                        }
-                        else if (it.Max <= uint.MaxValue)
-                        {
-                            type = "unsigned int";
-                        }
-                        else
-                        {
-                            type = "unsigned long long";
-                            suffix = "ULL";
-                        }
-                    }
-                    else
-                    {
-                        if (it.Max <= sbyte.MaxValue && it.Min >= sbyte.MinValue)
-                        {
-                            type = "char";
-                        }
-                        else if (it.Max <= short.MaxValue && it.Min >= short.MinValue)
-                        {
-                            type = "short";
-                        }
-                        else if (it.Max <= int.MaxValue && it.Min >= int.MinValue)
-                        {
-                            type = "int";
-                        }
-                        else
-                        {
+                    //if (it.Min > 0)
+                    //{
+                    //    if (it.Max <= byte.MaxValue)
+                    //    {
+                    //        type = "unsigned char";
+                    //    }
+                    //    else if (it.Max <= ushort.MaxValue)
+                    //    {
+                    //        type = "unsigned short";
+                    //    }
+                    //    else if (it.Max <= uint.MaxValue)
+                    //    {
+                    //        type = "unsigned int";
+                    //    }
+                    //    else
+                    //    {
+                            //type = "unsigned long long";
+                            //suffix = "ULL";
+                        //}
+                    //}
+                    //else
+                    //{
+                    //    if (it.Max <= sbyte.MaxValue && it.Min >= sbyte.MinValue)
+                    //    {
+                    //        type = "char";
+                    //    }
+                    //    else if (it.Max <= short.MaxValue && it.Min >= short.MinValue)
+                    //    {
+                    //        type = "short";
+                    //    }
+                    //    else if (it.Max <= int.MaxValue && it.Min >= int.MinValue)
+                    //    {
+                    //        type = "int";
+                    //    }
+                    //    else
+                    //    {
                             type = "long long";
-                            suffix = "LL";
-                        }
-                    }
+                    //    }
+                    //}
                 }
                 else if (t is StringType)
                 {
@@ -192,19 +225,45 @@ namespace isc {
                 {
                     type = "void";
                 }
+                else if (t is StaticFunctionType)
+                {
+                    StaticFunctionType sft = t as StaticFunctionType;
+
+                    if (!funcTypeDefs.ContainsKey(sft))
+                    {
+                        string rettype;
+                        GetCType(sft.ReturnType, out rettype);
+                        string alias = rettype.Replace(" ", "");
+                        List<string> paramtypes = new List<string>();
+                        foreach (IType pt in sft.ParameterTypes)
+                        {
+                            string paramtype;
+                            GetCType(pt, out paramtype);
+                            paramtypes.Add(paramtype);
+                            alias += "_p_" + paramtype;
+                        }
+                        alias += "_func_t";
+
+                        string typedef = rettype + " (*" + alias + ")" + "(" + string.Join(", ", paramtypes.ToArray()) + ")";
+                        funcTypeDefs[sft] = new KeyValuePair<string, string>(alias, typedef);
+                    }
+
+                    type = funcTypeDefs[sft].Key;
+                }
                 else
                 {
                     throw new Exception("Unknown type!");
                 }
             }
 
-            private static string TranslateExpression(IExpression expression)
+
+            private string TranslateExpression(IExpression expression, string outerfuncname)
             {
                 string initializer = "";
 
                 if (expression is IntegerLiteral)
                 {
-                    initializer = (expression as IntegerLiteral).Value.ToString();
+                    initializer = (expression as IntegerLiteral).Value.ToString() + "LL";
                 }
                 else if (expression is StringLiteral)
                 {
@@ -217,7 +276,13 @@ namespace isc {
                 else if (expression is FunctionCall)
                 {
                     FunctionCall fc = expression as FunctionCall;
-                    initializer = TranslateExpression(fc.LeftSideExpression) + "(" + string.Join(", ", fc.Parms.Select(x => TranslateExpression(x)).ToArray()) + ")";
+                    initializer = TranslateExpression(fc.LeftSideExpression, outerfuncname) + "(" + string.Join(", ", fc.Parms.Select(x => TranslateExpression(x, outerfuncname)).ToArray()) + ")";
+                }
+                else if (expression is Function)
+                {
+                    Function func = expression as Function;
+                    MakeFunction(func.Name, outerfuncname, func);
+                    initializer = "" + GetFunctionName(func.Name, outerfuncname);
                 }
                 else
                 {

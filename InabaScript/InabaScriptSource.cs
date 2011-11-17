@@ -16,6 +16,7 @@ namespace InabaScript
 
 	public interface IType {
 		bool IsAssignableTo(IType type);
+        string Name { get; }
 	}
 
 	public class Referencer : IExpression {
@@ -46,25 +47,27 @@ namespace InabaScript
 
 	public class IntegerType : IType {
 
-		decimal min, max;
-		public IntegerType(decimal min, decimal max) {
-			this.min = min;
-			this.max = max;
+		public IntegerType() {
 		}
 
-		public decimal Min { get { return min; } }
-		public decimal Max { get { return max; } }
 
-		public bool IsAssignableTo(IType type) {
-			if (type is IntegerType) {
-				IntegerType it = type as IntegerType;
-				if (min >= it.min && max <= it.max) {
-					return true;
-				}
-			}
-			return false;
-		}
-	}
+        public bool IsAssignableTo(IType type)
+        {
+            if (type is IntegerType)
+            {
+                return true;
+            }
+            return false;
+        }
+
+        public string Name
+        {
+            get
+            {
+                return "integer";
+            }
+        }
+    }
 
     public class StringType : IType
     {
@@ -80,6 +83,14 @@ namespace InabaScript
             }
             return false;
         }
+
+        public string Name
+        {
+            get
+            {
+                return "string";
+            }
+        }
     }
 
 
@@ -91,7 +102,7 @@ namespace InabaScript
 				throw new Exception("Not integer!");
 			}
 			this.value = value;
-			this.type = new IntegerType(value, value);
+			this.type = new IntegerType();
 		}
 
 		#region IExpression Members
@@ -108,6 +119,23 @@ namespace InabaScript
 
 		#endregion
 	}
+
+    public class ReturnStatement : IStatement
+    {
+        IExpression expr;
+        public ReturnStatement(IExpression expr)
+        {
+            this.expr = expr;
+        }
+
+        public IExpression Expression
+        {
+            get
+            {
+                return expr;
+            }
+        }
+    }
 
     public class StringLiteral : IExpression
     {
@@ -155,6 +183,14 @@ namespace InabaScript
 		public bool IsAssignableTo(IType type) {
 			return false;
 		}
+
+        public string Name
+        {
+            get
+            {
+                return "nothing";
+            }
+        }
 	}
 
 	public class StaticFunctionType : IType {
@@ -185,22 +221,34 @@ namespace InabaScript
 			}
 			return false;
 		}
+
+        public string Name
+        {
+            get
+            {
+                return string.Join(" -> ", parameterTypes.Select(x=>x.Name).ToArray()) + "->" + returntype.Name;
+            }
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (obj is StaticFunctionType)
+            {
+                StaticFunctionType other = obj as StaticFunctionType;
+                if (other.Name == Name)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public override int GetHashCode()
+        {
+            return Name.GetHashCode();
+        }
 	}
 
-    public class FunctionType : IType
-    {
-        
-        public bool IsAssignableTo(IType type)
-        {
-            throw new NotImplementedException();
-
-        }
-
-        public IType GetCalledType()
-        {
-            throw new NotImplementedException();
-        }
-    }
 
 
     public class Function : IExpression, IDeclaration
@@ -214,6 +262,13 @@ namespace InabaScript
         public void Add(IStatement statement)
         {
             statements.Add(statement);
+        }
+
+        IExpression retexpr = null;
+
+        public void Return(IExpression retexpr)
+        {
+            this.retexpr = retexpr;
         }
 
         List<IStatement> statements = new List<IStatement>();
@@ -231,10 +286,22 @@ namespace InabaScript
             get { return name; }
         }
 
+        public IType ReturnType
+        {
+            get
+            {
+                if (retexpr == null)
+                {
+                    return new NothingType();
+                }
+                return retexpr.Type;
+            }
+        }
+
         public IType Type
         {
             get {
-                return new StaticFunctionType(new NothingType(), new IType[0]);
+                return new StaticFunctionType(ReturnType, new IType[0]);
             }
         }
     }
@@ -256,6 +323,24 @@ namespace InabaScript
 			get { return functionType; }
 		}
 	}
+
+
+    public class Invoker : IStatement
+    {
+        FunctionCall invocation;
+        public Invoker(IExpression invocation)
+        {
+            this.invocation = invocation as FunctionCall;
+        }
+
+        public FunctionCall FuncCall
+        {
+            get
+            {
+                return invocation;
+            }
+        }
+    }
 
 
 	public class FunctionCall : IExpression {
@@ -317,6 +402,11 @@ namespace InabaScript
 		}
 
 		public static Scope FindDeclOfName(string name, Scope startfrom) {
+            if (name == "")
+            {
+                return null;
+            }
+
 			Scope curr = startfrom;
 			while (curr != null) {
 				if (name == curr.decl.Name) {

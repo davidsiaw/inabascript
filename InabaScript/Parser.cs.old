@@ -16,7 +16,7 @@ namespace InabaScript {
 	const int _utf8bom = 5;
 	const int _validStringLiteral = 6;
 	const int _colon = 7;
-	const int maxT = 17;
+	const int maxT = 18;
 
 		const bool T = true;
 		const bool x = false;
@@ -27,7 +27,7 @@ namespace InabaScript {
 		static int errDist = minErrDist;
 
 	public static InabaScriptSource iss;
-
+public static int anonnum = 0;
 
 /* If you want your generated compiler case insensitive add the */
 /* keyword IGNORECASE here. */
@@ -124,7 +124,7 @@ namespace InabaScript {
 			StringLiteral(out expr);
 		} else if (la.kind == 1 || la.kind == 11) {
 			Evaluatable(ref scope, out expr);
-		} else SynErr(18);
+		} else SynErr(19);
 	}
 
 	static void Invocation(ref Scope scope, IExpression lhs, out IExpression expr) {
@@ -141,48 +141,72 @@ namespace InabaScript {
 		expr = new FunctionCall(lhs, list); 
 	}
 
-	static void Evaluatable(ref Scope scope, out IExpression expr) {
-		expr = null; 
+	static void FunctionCall(ref Scope scope, out IStatement stmt) {
+		IExpression expr = null; 
 		if (la.kind == 1) {
 			Referencer(ref scope, out expr);
 		} else if (la.kind == 11) {
 			FunctionDeclaration(ref scope, out expr);
-		} else SynErr(19);
-		if (la.kind == 9) {
-			Invocation(ref scope, expr, out expr);
-		}
+		} else SynErr(20);
+		Invocation(ref scope, expr, out expr);
+		stmt = new Invoker(expr); 
 	}
 
 	static void FunctionDeclaration(ref Scope scope, out IExpression fundecl) {
 		string identifier; 
 		List<string> parameternames = new List<string>(); 
 		IStatement statement; 
+		IExpression retexpr = null; 
 		Expect(11);
 		Expect(9);
 		Expect(10);
-		Function func = new Function("", parameternames); 
+		Function func = new Function("func" + anonnum++, parameternames); 
 		Scope childscope = new Scope(func, scope); 
 		Expect(12);
-		while (la.kind == 14) {
+		while (la.kind == 1 || la.kind == 11 || la.kind == 16) {
 			Statement(ref childscope, out statement);
 			func.Add(statement); 
 		}
-		Expect(13);
+		if (la.kind == 13) {
+			Get();
+			PrimaryExpression(ref scope, out retexpr);
+			func.Return(retexpr); 
+			Expect(14);
+			func.Add(new ReturnStatement(retexpr)); 
+		}
+		Expect(15);
 		fundecl = func; 
+	}
+
+	static void Evaluatable(ref Scope scope, out IExpression expr) {
+		expr = null; 
+		if (la.kind == 1) {
+			Referencer(ref scope, out expr);
+		} else if (la.kind == 11) {
+			FunctionDeclaration(ref scope, out expr);
+		} else SynErr(21);
+		if (la.kind == 9) {
+			Invocation(ref scope, expr, out expr);
+		}
 	}
 
 	static void Statement(ref Scope scope, out IStatement statement) {
 		statement = null; 
-		VariableDeclaration(ref scope, out statement);
-		Expect(16);
+		if (la.kind == 16) {
+			VariableDeclaration(ref scope, out statement);
+			Expect(14);
+		} else if (la.kind == 1 || la.kind == 11) {
+			FunctionCall(ref scope, out statement);
+			Expect(14);
+		} else SynErr(22);
 	}
 
 	static void VariableDeclaration(ref Scope scope, out IStatement vardecl) {
 		string identifier; 
 		IExpression expr; 
-		Expect(14);
+		Expect(16);
 		Identifier(out identifier);
-		Expect(15);
+		Expect(17);
 		PrimaryExpression(ref scope, out expr);
 		vardecl = new VariableDeclaration(identifier, expr); 
 		scope = new Scope(vardecl as VariableDeclaration, scope); 
@@ -194,8 +218,8 @@ namespace InabaScript {
 		if (la.kind == 5) {
 			Get();
 		}
-		while (la.kind == 14) {
-			while (!(la.kind == 0 || la.kind == 14)) {SynErr(20); Get();}
+		while (la.kind == 1 || la.kind == 11 || la.kind == 16) {
+			while (!(StartOf(2))) {SynErr(23); Get();}
 			Statement(ref scope, out stmt);
 			iss.statements.Add(stmt); 
 		}
@@ -214,8 +238,9 @@ namespace InabaScript {
 		}
 
 		static bool[,] set = {
-			{T,x,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x},
-		{x,T,x,T, x,x,T,x, x,x,x,T, x,x,x,x, x,x,x}
+			{T,T,x,x, x,x,x,x, x,x,x,T, x,x,x,x, T,x,x,x},
+		{x,T,x,T, x,x,T,x, x,x,x,T, x,x,x,x, x,x,x,x},
+		{T,T,x,x, x,x,x,x, x,x,x,T, x,x,x,x, T,x,x,x}
 
 		};
 	} // end Parser
@@ -241,14 +266,17 @@ namespace InabaScript {
 			case 10: s = "\")\" expected"; break;
 			case 11: s = "\"function\" expected"; break;
 			case 12: s = "\"{\" expected"; break;
-			case 13: s = "\"}\" expected"; break;
-			case 14: s = "\"var\" expected"; break;
-			case 15: s = "\"=\" expected"; break;
-			case 16: s = "\";\" expected"; break;
-			case 17: s = "??? expected"; break;
-			case 18: s = "invalid PrimaryExpression"; break;
-			case 19: s = "invalid Evaluatable"; break;
-			case 20: s = "this symbol not expected in InabaScript"; break;
+			case 13: s = "\"return\" expected"; break;
+			case 14: s = "\";\" expected"; break;
+			case 15: s = "\"}\" expected"; break;
+			case 16: s = "\"var\" expected"; break;
+			case 17: s = "\"=\" expected"; break;
+			case 18: s = "??? expected"; break;
+			case 19: s = "invalid PrimaryExpression"; break;
+			case 20: s = "invalid FunctionCall"; break;
+			case 21: s = "invalid Evaluatable"; break;
+			case 22: s = "invalid Statement"; break;
+			case 23: s = "this symbol not expected in InabaScript"; break;
 
 				default: s = "error " + n; break;
 			}

@@ -7,7 +7,7 @@ COMPILER InabaScript
 /* Add auxiliary methods and declaration here. */
 
 public static InabaScriptSource iss;
-
+public static int anonnum = 0;
 
 /* If you want your generated compiler case insensitive add the */
 /* keyword IGNORECASE here. */
@@ -101,6 +101,16 @@ Invocation<ref Scope scope, IExpression lhs, out IExpression expr> =(. expr = nu
 																	(. expr = new FunctionCall(lhs, list); .)
 .
 
+FunctionCall<ref Scope scope, out IStatement stmt> =				(. IExpression expr = null; .)
+(
+	Referencer<ref scope, out expr> |
+	FunctionDeclaration<ref scope, out expr>
+)
+Invocation<ref scope, expr, out expr>
+																	(. stmt = new Invoker(expr); .)
+.
+
+
 Evaluatable<ref Scope scope, out IExpression expr> =				(. expr = null; .)
 (
 	Referencer<ref scope, out expr> |
@@ -115,15 +125,21 @@ Evaluatable<ref Scope scope, out IExpression expr> =				(. expr = null; .)
 FunctionDeclaration<ref Scope scope, out IExpression fundecl> =	(. string identifier; .)
 																(. List<string> parameternames = new List<string>(); .)
 																(. IStatement statement; .)
+																(. IExpression retexpr = null; .)
 "function"
 "("
 ")"
-																(. Function func = new Function("", parameternames); .)
+																(. Function func = new Function("func" + anonnum++, parameternames); .)
 																(. Scope childscope = new Scope(func, scope); .)
 "{"
 {
 	Statement<ref childscope, out statement>					(. func.Add(statement); .)
 }
+[
+	"return"
+	PrimaryExpression<ref scope, out retexpr>					(. func.Return(retexpr); .)
+	";"															(. func.Add(new ReturnStatement(retexpr)); .)
+]
 "}"																(. fundecl = func; .)
 .
 
@@ -151,7 +167,8 @@ PrimaryExpression<ref scope, out expr>
 Statement<ref Scope scope, out IStatement statement> =			(. statement = null; .)
 
 (
-	(VariableDeclaration<ref scope, out statement> ";")
+	(VariableDeclaration<ref scope, out statement> ";") |
+	(FunctionCall<ref scope, out statement> ";")
 )
 .
 
