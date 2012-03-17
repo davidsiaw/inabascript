@@ -1,33 +1,18 @@
 var a = 10;
 var b = a;
 var c = 2412037;
-var d = 2412231312037;
-var e = -788;
-var f = "hello world";
 
 var test = function () {
 	var x = 123;
+	var z = c;
 };
 
 var outerfunc = function () {
 	var innerfunc = function() {
+		var y = b;
 		var x = 100;
 	};
+	return innerfunc;
 };
 
-var getnum = function () {
-	return function() { return 9; };
-};
-
-var funcptr = outerfunc;
-var anotherfptr = getnum();
-
-var functioninfunction = function () {
-	return function() { return function() {return 0;}; };
-}();
-
-var ff = functioninfunction();
-
-var fm = ff();
-
-funcptr();
+outerfunc()();

@@ -16,7 +16,7 @@ namespace InabaScript {
 	const int _utf8bom = 5;
 	const int _validStringLiteral = 6;
 	const int _colon = 7;
-	const int maxT = 18;
+	const int maxT = 20;
 
 		const bool T = true;
 		const bool x = false;
@@ -99,117 +99,144 @@ public static int anonnum = 0;
 		str = new StringLiteral(t.val.Substring(1, t.val.Length-2)); 
 	}
 
-	static void Referencer(ref Scope scope, out IExpression expr) {
+	static void Referencer(ref Scope scope, out IExpression expr, Function func) {
 		string identifier; 
 		Identifier(out identifier);
-		expr = new Referencer(scope, identifier); 
+		expr = new Referencer(scope, identifier, func); 
 	}
 
-	static void ParameterList(ref Scope scope, ParameterList list) {
+	static void ParameterList(ref Scope scope, ParameterList list, Function func) {
 		IExpression expr; 
-		PrimaryExpression(ref scope, out expr);
+		PrimaryExpression(ref scope, out expr, func);
 		list.Add(expr); 
 		while (la.kind == 8) {
 			Get();
-			PrimaryExpression(ref scope, out expr);
+			PrimaryExpression(ref scope, out expr, func);
 			list.Add(expr); 
 		}
 	}
 
-	static void PrimaryExpression(ref Scope scope, out IExpression expr) {
+	static void PrimaryExpression(ref Scope scope, out IExpression expr, Function func) {
 		expr = null; 
 		if (la.kind == 3) {
 			IntegerLiteral(out expr);
 		} else if (la.kind == 6) {
 			StringLiteral(out expr);
 		} else if (la.kind == 1 || la.kind == 11) {
-			Evaluatable(ref scope, out expr);
-		} else SynErr(19);
+			Evaluatable(ref scope, out expr, func);
+		} else SynErr(21);
 	}
 
-	static void Invocation(ref Scope scope, IExpression lhs, out IExpression expr) {
+	static void Invocation(ref Scope scope, IExpression lhs, out IExpression expr, Function func) {
 		expr = null; 
 		List<IExpression> list = new List<IExpression>(); 
 		Expect(9);
 		if (StartOf(1)) {
-			ParameterList(ref scope, list);
+			ParameterList(ref scope, list, func);
 		}
 		Expect(10);
 		if (la.kind == 9) {
-			Invocation(ref scope, lhs, out expr);
+			Invocation(ref scope, lhs, out expr, func);
 		}
 		expr = new FunctionCall(lhs, list); 
 	}
 
-	static void FunctionCall(ref Scope scope, out IStatement stmt) {
+	static void FunctionCall(ref Scope scope, out IStatement stmt, Function func) {
 		IExpression expr = null; 
 		if (la.kind == 1) {
-			Referencer(ref scope, out expr);
+			Referencer(ref scope, out expr, func);
 		} else if (la.kind == 11) {
-			FunctionDeclaration(ref scope, out expr);
-		} else SynErr(20);
-		Invocation(ref scope, expr, out expr);
+			FunctionDeclaration(ref scope, out expr, func);
+		} else SynErr(22);
+		Invocation(ref scope, expr, out expr, func);
 		stmt = new Invoker(expr); 
 	}
 
-	static void FunctionDeclaration(ref Scope scope, out IExpression fundecl) {
-		string identifier; 
+	static void FunctionDeclaration(ref Scope scope, out IExpression fundecl, Function func) {
 		List<string> parameternames = new List<string>(); 
 		IStatement statement; 
 		IExpression retexpr = null; 
 		Expect(11);
 		Expect(9);
 		Expect(10);
-		Function func = new Function("func" + anonnum++, parameternames); 
-		Scope childscope = new Scope(func, scope); 
+		Function innerfunc = new Function("func" + anonnum++, parameternames); 
+		Scope childscope = new Scope(innerfunc, scope, innerfunc); 
 		Expect(12);
-		while (la.kind == 1 || la.kind == 11 || la.kind == 16) {
-			Statement(ref childscope, out statement);
-			func.Add(statement); 
+		while (StartOf(2)) {
+			Statement(ref childscope, out statement, innerfunc);
+			innerfunc.Add(statement); 
 		}
 		if (la.kind == 13) {
 			Get();
-			PrimaryExpression(ref scope, out retexpr);
-			func.Return(retexpr); 
+			PrimaryExpression(ref childscope, out retexpr, innerfunc);
+			innerfunc.Return(retexpr); 
 			Expect(14);
-			func.Add(new ReturnStatement(retexpr)); 
+			innerfunc.Add(new ReturnStatement(retexpr)); 
 		}
+		if (func != null) { func.AddExternalSymbol(innerfunc.OutsideSymbols); } 
 		Expect(15);
-		fundecl = func; 
+		fundecl = innerfunc; 
 	}
 
-	static void Evaluatable(ref Scope scope, out IExpression expr) {
+	static void Evaluatable(ref Scope scope, out IExpression expr, Function func) {
 		expr = null; 
 		if (la.kind == 1) {
-			Referencer(ref scope, out expr);
+			Referencer(ref scope, out expr, func);
 		} else if (la.kind == 11) {
-			FunctionDeclaration(ref scope, out expr);
-		} else SynErr(21);
+			FunctionDeclaration(ref scope, out expr, func);
+		} else SynErr(23);
 		if (la.kind == 9) {
-			Invocation(ref scope, expr, out expr);
+			Invocation(ref scope, expr, out expr, func);
 		}
 	}
 
-	static void Statement(ref Scope scope, out IStatement statement) {
+	static void Statement(ref Scope scope, out IStatement statement, Function func) {
 		statement = null; 
 		if (la.kind == 16) {
-			VariableDeclaration(ref scope, out statement);
+			VariableDeclaration(ref scope, out statement, func);
 			Expect(14);
 		} else if (la.kind == 1 || la.kind == 11) {
-			FunctionCall(ref scope, out statement);
+			FunctionCall(ref scope, out statement, func);
 			Expect(14);
-		} else SynErr(22);
+		} else if (la.kind == 18) {
+			EnumTypeDeclaration(ref scope, out statement);
+			Expect(14);
+		} else SynErr(24);
 	}
 
-	static void VariableDeclaration(ref Scope scope, out IStatement vardecl) {
+	static void VariableDeclaration(ref Scope scope, out IStatement vardecl, Function func) {
 		string identifier; 
 		IExpression expr; 
 		Expect(16);
 		Identifier(out identifier);
 		Expect(17);
-		PrimaryExpression(ref scope, out expr);
+		PrimaryExpression(ref scope, out expr, func);
 		vardecl = new VariableDeclaration(identifier, expr); 
 		scope = new Scope(vardecl as VariableDeclaration, scope); 
+	}
+
+	static void Symbol(ref Scope scope, EnumType type, out VariableDeclaration vardecl) {
+		string identifier; 
+		Identifier(out identifier);
+		vardecl = new VariableDeclaration(identifier, new EnumLiteral(type, identifier)); 
+		scope = new Scope(vardecl as VariableDeclaration, scope); 
+	}
+
+	static void EnumTypeDeclaration(ref Scope scope, out IStatement typedecl) {
+		string identifier; 
+		VariableDeclaration vardecl; 
+		Expect(18);
+		Identifier(out identifier);
+		EnumType type = new EnumType(identifier); 
+		Expect(17);
+		Symbol(ref scope, type, out vardecl);
+		type.Add(vardecl); 
+		while (la.kind == 19) {
+			Get();
+			Symbol(ref scope, type, out vardecl);
+			type.Add(vardecl); 
+		}
+		typedecl = type; 
 	}
 
 	static void InabaScript() {
@@ -218,9 +245,9 @@ public static int anonnum = 0;
 		if (la.kind == 5) {
 			Get();
 		}
-		while (la.kind == 1 || la.kind == 11 || la.kind == 16) {
-			while (!(StartOf(2))) {SynErr(23); Get();}
-			Statement(ref scope, out stmt);
+		while (StartOf(2)) {
+			while (!(StartOf(3))) {SynErr(25); Get();}
+			Statement(ref scope, out stmt, null);
 			iss.statements.Add(stmt); 
 		}
 	}
@@ -238,9 +265,10 @@ public static int anonnum = 0;
 		}
 
 		static bool[,] set = {
-			{T,T,x,x, x,x,x,x, x,x,x,T, x,x,x,x, T,x,x,x},
-		{x,T,x,T, x,x,T,x, x,x,x,T, x,x,x,x, x,x,x,x},
-		{T,T,x,x, x,x,x,x, x,x,x,T, x,x,x,x, T,x,x,x}
+			{T,T,x,x, x,x,x,x, x,x,x,T, x,x,x,x, T,x,T,x, x,x},
+		{x,T,x,T, x,x,T,x, x,x,x,T, x,x,x,x, x,x,x,x, x,x},
+		{x,T,x,x, x,x,x,x, x,x,x,T, x,x,x,x, T,x,T,x, x,x},
+		{T,T,x,x, x,x,x,x, x,x,x,T, x,x,x,x, T,x,T,x, x,x}
 
 		};
 	} // end Parser
@@ -271,12 +299,14 @@ public static int anonnum = 0;
 			case 15: s = "\"}\" expected"; break;
 			case 16: s = "\"var\" expected"; break;
 			case 17: s = "\"=\" expected"; break;
-			case 18: s = "??? expected"; break;
-			case 19: s = "invalid PrimaryExpression"; break;
-			case 20: s = "invalid FunctionCall"; break;
-			case 21: s = "invalid Evaluatable"; break;
-			case 22: s = "invalid Statement"; break;
-			case 23: s = "this symbol not expected in InabaScript"; break;
+			case 18: s = "\"type\" expected"; break;
+			case 19: s = "\"|\" expected"; break;
+			case 20: s = "??? expected"; break;
+			case 21: s = "invalid PrimaryExpression"; break;
+			case 22: s = "invalid FunctionCall"; break;
+			case 23: s = "invalid Evaluatable"; break;
+			case 24: s = "invalid Statement"; break;
+			case 25: s = "this symbol not expected in InabaScript"; break;
 
 				default: s = "error " + n; break;
 			}

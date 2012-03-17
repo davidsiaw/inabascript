@@ -79,96 +79,117 @@ StringLiteral<out IExpression str> =
 validStringLiteral												(. str = new StringLiteral(t.val.Substring(1, t.val.Length-2)); .)
 .
 
-Referencer<ref Scope scope, out IExpression expr> =				(. string identifier; .)
-Identifier<out identifier>										(. expr = new Referencer(scope, identifier); .)
+Referencer<ref Scope scope, out IExpression expr, Function func> =				(. string identifier; .)
+Identifier<out identifier>										(. expr = new Referencer(scope, identifier, func); .)
 .
 
-ParameterList<ref Scope scope, ParameterList list> =				(. IExpression expr; .)
-PrimaryExpression<ref scope, out expr>								(. list.Add(expr); .)
+ParameterList<ref Scope scope, ParameterList list, Function func> =				(. IExpression expr; .)
+PrimaryExpression<ref scope, out expr, func>									(. list.Add(expr); .)
 {
-	"," PrimaryExpression<ref scope, out expr>						(. list.Add(expr); .)
+	"," PrimaryExpression<ref scope, out expr, func>							(. list.Add(expr); .)
 }
 .
 
-Invocation<ref Scope scope, IExpression lhs, out IExpression expr> =(. expr = null; .)
-																	(. List<IExpression> list = new List<IExpression>(); .)
+Invocation<ref Scope scope, IExpression lhs, out IExpression expr, Function func> =(. expr = null; .)
+																				(. List<IExpression> list = new List<IExpression>(); .)
 "("
-	[ ParameterList<ref scope, list> ]
+	[ ParameterList<ref scope, list, func> ]
 ")"
 [
-	Invocation<ref scope, lhs, out expr>
+	Invocation<ref scope, lhs, out expr, func>
 ]
-																	(. expr = new FunctionCall(lhs, list); .)
+																				(. expr = new FunctionCall(lhs, list); .)
 .
 
-FunctionCall<ref Scope scope, out IStatement stmt> =				(. IExpression expr = null; .)
+FunctionCall<ref Scope scope, out IStatement stmt, Function func> =				(. IExpression expr = null; .)
 (
-	Referencer<ref scope, out expr> |
-	FunctionDeclaration<ref scope, out expr>
+	Referencer<ref scope, out expr, func> |
+	FunctionDeclaration<ref scope, out expr, func>
 )
-Invocation<ref scope, expr, out expr>
-																	(. stmt = new Invoker(expr); .)
+Invocation<ref scope, expr, out expr, func>
+																				(. stmt = new Invoker(expr); .)
 .
 
 
-Evaluatable<ref Scope scope, out IExpression expr> =				(. expr = null; .)
+Evaluatable<ref Scope scope, out IExpression expr, Function func> =				(. expr = null; .)
 (
-	Referencer<ref scope, out expr> |
-	FunctionDeclaration<ref scope, out expr>
+	Referencer<ref scope, out expr, func> |
+	FunctionDeclaration<ref scope, out expr, func>
 )
 [
-	Invocation<ref scope, expr, out expr>
+	Invocation<ref scope, expr, out expr, func>
 ]
 .
 
 
-FunctionDeclaration<ref Scope scope, out IExpression fundecl> =	(. string identifier; .)
-																(. List<string> parameternames = new List<string>(); .)
-																(. IStatement statement; .)
-																(. IExpression retexpr = null; .)
+FunctionDeclaration<ref Scope scope, out IExpression fundecl, Function func> =
+																				(. List<string> parameternames = new List<string>(); .)
+																				(. IStatement statement; .)
+																				(. IExpression retexpr = null; .)
 "function"
 "("
 ")"
-																(. Function func = new Function("func" + anonnum++, parameternames); .)
-																(. Scope childscope = new Scope(func, scope); .)
+																				(. Function innerfunc = new Function("func" + anonnum++, parameternames); .)
+																				(. Scope childscope = new Scope(innerfunc, scope, innerfunc); .)
 "{"
 {
-	Statement<ref childscope, out statement>					(. func.Add(statement); .)
+	Statement<ref childscope, out statement, innerfunc>							(. innerfunc.Add(statement); .)
 }
 [
 	"return"
-	PrimaryExpression<ref scope, out retexpr>					(. func.Return(retexpr); .)
-	";"															(. func.Add(new ReturnStatement(retexpr)); .)
+	PrimaryExpression<ref childscope, out retexpr, innerfunc>					(. innerfunc.Return(retexpr); .)
+	";"																			(. innerfunc.Add(new ReturnStatement(retexpr)); .)
 ]
-"}"																(. fundecl = func; .)
+																				(. if (func != null) { func.AddExternalSymbol(innerfunc.OutsideSymbols); } .)
+"}"																				(. fundecl = innerfunc; .)
 .
 
 
-PrimaryExpression<ref Scope scope, out IExpression expr> =		(. expr = null; .)
+PrimaryExpression<ref Scope scope, out IExpression expr, Function func> =		(. expr = null; .)
 (
 	IntegerLiteral<out expr> |
 	StringLiteral<out expr> |
-	Evaluatable<ref scope, out expr>
+	Evaluatable<ref scope, out expr, func>
 )
 .
 
-VariableDeclaration<ref Scope scope, out IStatement vardecl> =	(. string identifier; .)
+VariableDeclaration<ref Scope scope, out IStatement vardecl, Function func> =	(. string identifier; .)
 																(. IExpression expr; .)
 "var" 
 Identifier<out identifier>
 "=" 
-PrimaryExpression<ref scope, out expr>
+PrimaryExpression<ref scope, out expr, func>
 																(. vardecl = new VariableDeclaration(identifier, expr); .)
 																(. scope = new Scope(vardecl as VariableDeclaration, scope); .)
 .
 
 
+Symbol<ref Scope scope, EnumType type, out VariableDeclaration vardecl> =(. string identifier; .)
+Identifier<out identifier>										(. vardecl = new VariableDeclaration(identifier, new EnumLiteral(type, identifier)); .)
+																(. scope = new Scope(vardecl as VariableDeclaration, scope); .)
+.
 
-Statement<ref Scope scope, out IStatement statement> =			(. statement = null; .)
+
+EnumTypeDeclaration<ref Scope scope, out IStatement typedecl> =	(. string identifier; .)
+																(. VariableDeclaration vardecl; .)
+"type"
+Identifier<out identifier>										(. EnumType type = new EnumType(identifier); .)
+"="
+Symbol<ref scope, type, out vardecl>							(. type.Add(vardecl); .)
+{
+	"|" Symbol<ref scope, type, out vardecl>					(. type.Add(vardecl); .)
+}
+																(. typedecl = type; .)
+.
+
+
+
+Statement<ref Scope scope, out IStatement statement, Function func> =(. statement = null; .)
 
 (
-	(VariableDeclaration<ref scope, out statement> ";") |
-	(FunctionCall<ref scope, out statement> ";")
+	(VariableDeclaration<ref scope, out statement, func> ";") |
+	(FunctionCall<ref scope, out statement, func> ";") |
+	(EnumTypeDeclaration<ref scope, out statement> ";")
 )
 .
 
@@ -177,7 +198,7 @@ InabaScript =													(. Scope scope = iss.intrinsics; .)
 																(. IStatement stmt; .)
 [utf8bom]
 {
-	SYNC Statement<ref scope, out stmt>							(. iss.statements.Add(stmt); .)
+	SYNC Statement<ref scope, out stmt, null>					(. iss.statements.Add(stmt); .)
 }
 .
 

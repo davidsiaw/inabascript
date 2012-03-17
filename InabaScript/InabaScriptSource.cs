@@ -23,13 +23,18 @@ namespace InabaScript
 
 		IDeclaration declaration;
 
-		public Referencer(Scope scope, string identifier) {
+		public Referencer(Scope scope, string identifier, Function func) {
 
 			Scope s = Scope.FindDeclOfName(identifier, scope);
 			if (s == null) {
 				throw new Exception("Identifier " + identifier + " not found!");
 			}
 			declaration = s.Declaration;
+
+            if (func != s.FunctionScope)
+            {
+                func.AddExternalSymbol(declaration);
+            }
 		}
 
 		public IType Type {
@@ -69,6 +74,49 @@ namespace InabaScript
         }
     }
 
+    public class EnumType : IType, IStatement
+    {
+
+        string typename;
+        List<VariableDeclaration> values = new List<VariableDeclaration>();
+
+        public EnumType(string typename)
+        {
+            this.typename = typename;
+        }
+
+        public bool IsAssignableTo(IType type)
+        {
+            if (type is EnumType)
+            {
+                EnumType et = (EnumType)type;
+                if (et.Name == typename)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public void Add(VariableDeclaration vdecl)
+        {
+            values.Add(vdecl);
+        }
+
+        public IEnumerable<VariableDeclaration> Values
+        {
+            get
+            {
+                return values;
+            }
+        }
+
+        public string Name
+        {
+            get { return typename; }
+        }
+    }
+
     public class StringType : IType
     {
         public StringType()
@@ -93,6 +141,21 @@ namespace InabaScript
         }
     }
 
+    public class EnumLiteral : IExpression
+    {
+        EnumType type;
+        string name;
+        public EnumLiteral(EnumType type, string name)
+        {
+            this.type = type;
+            this.name = name;
+        }
+
+        public IType Type
+        {
+            get { return type; }
+        }
+    }
 
 	public class IntegerLiteral : IExpression {
 		IntegerType type;
@@ -177,6 +240,7 @@ namespace InabaScript
 		public string Name { get { return name; } }
 		public IType Type { get { return initializer.Type; } }
 	}
+
 
 	public class NothingType : IType {
 
@@ -286,6 +350,26 @@ namespace InabaScript
             get { return name; }
         }
 
+        List<IDeclaration> externalSymbol = new List<IDeclaration>();
+
+        public IEnumerable<IDeclaration> OutsideSymbols
+        {
+            get
+            {
+                return externalSymbol;
+            }
+        }
+
+        public void AddExternalSymbol(IDeclaration decl)
+        {
+            externalSymbol.Add(decl);
+        }
+
+        public void AddExternalSymbol(IEnumerable<IDeclaration> decl)
+        {
+            externalSymbol.AddRange(decl);
+        }
+
         public IType ReturnType
         {
             get
@@ -382,7 +466,6 @@ namespace InabaScript
 		}
 	}
 
-
 	public interface IDeclaration {
 		string Name { get; }
 		IType Type { get; }
@@ -391,15 +474,24 @@ namespace InabaScript
 	public class Scope {
 		Scope parent;
 		IDeclaration decl;
+        Function func;
 
-		public Scope(IDeclaration decl, Scope parent) {
-			this.decl = decl;
-			this.parent = parent;
+        public Scope(IDeclaration decl, Scope parent)
+            : this(decl, parent, parent == null ? null : parent.func)
+        {
+        }
 
-			if (FindDeclOfName(decl.Name, parent) != null) {
-				throw new Exception(decl.Name + " already defined!");
-			}
-		}
+        public Scope(IDeclaration decl, Scope parent, Function func)
+        {
+            this.decl = decl;
+            this.parent = parent;
+            this.func = func;
+
+            if (FindDeclOfName(decl.Name, parent) != null)
+            {
+                throw new Exception(decl.Name + " already defined!");
+            }
+        }
 
 		public static Scope FindDeclOfName(string name, Scope startfrom) {
             if (name == "")
@@ -417,7 +509,8 @@ namespace InabaScript
 			return null;
 		}
 
-		public IDeclaration Declaration { get { return decl; } }
+        public IDeclaration Declaration { get { return decl; } }
+        public Function FunctionScope { get { return func; } }
 
 	}
 

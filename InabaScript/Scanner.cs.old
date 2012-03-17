@@ -98,8 +98,8 @@ namespace InabaScript {
 		const char EOL = '\n';
 		const int eofSym = 0; /* pdt */
 		const int charSetSize = 256;
-	const int maxT = 18;
-	const int noSym = 18;
+	const int maxT = 20;
+	const int noSym = 20;
 	static short[] start = {
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
@@ -108,7 +108,7 @@ namespace InabaScript {
 	  0,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,
 	  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  0,  0,  0,  0,  0,
 	  0,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,
-	  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1, 18,  0, 20,  0,  0,
+	  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1, 18, 22, 20,  0,  0,
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
@@ -239,6 +239,7 @@ namespace InabaScript {
 			case "function": t.kind = 11; break;
 			case "return": t.kind = 13; break;
 			case "var": t.kind = 16; break;
+			case "type": t.kind = 18; break;
 			default: break;
 		}
 		}
@@ -310,6 +311,8 @@ namespace InabaScript {
 				{t.kind = 15; break;}
 			case 21:
 				{t.kind = 17; break;}
+			case 22:
+				{t.kind = 19; break;}
 
 			}
 			t.val = new String(tval, 0, tlen);

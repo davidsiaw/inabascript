@@ -88,6 +88,7 @@ namespace isc {
 
             List<string> functions = new List<string>();
             Dictionary<StaticFunctionType, KeyValuePair<string, string>> funcTypeDefs = new Dictionary<StaticFunctionType, KeyValuePair<string, string>>();
+            Dictionary<CStruct, string> cstructToName = new Dictionary<CStruct, string>();
 
             private void WriteSourceFile(string main)
             {
@@ -104,15 +105,92 @@ namespace isc {
                     sw.WriteLine("// on " + DateTime.Now + " " + TimeZone.CurrentTimeZone.StandardName);
                     sw.WriteLine();
 
+                    // includes
+                    sw.WriteLine("#include <stdio.h>");
+                    sw.WriteLine("#include <stdlib.h>");
+                    sw.WriteLine();
+
+                    // write func defs
+                    sw.WriteLine("// Function definitions");
                     foreach (var v in funcTypeDefs.Values)
                     {
                         sw.WriteLine("typedef {0};", v.Value);
+                        sw.WriteLine();
+
+                        sw.WriteLine("typedef struct\n{");
+                        sw.WriteLine("\t{0} func;", v.Key+"_func_t");
+                        sw.WriteLine("\tvoid* context;");
+                        sw.WriteLine("}} {0};\n", v.Key + "_func_t_bind_t");
                     }
+                    sw.WriteLine();
+
+
+                    // write struct declarations
+                    sw.WriteLine("// Container types");
+                    foreach (var kvpair in cstructToName)
+                    {
+                        sw.WriteLine("{0} {1};\n", kvpair.Key.Signature, kvpair.Value);
+                    }
+
                     sw.WriteLine("");
 
                     functions.ForEach(x => sw.WriteLine(x));
                     sw.WriteLine(mainfunc);
                 }
+            }
+
+            string GetStructName(CStruct strct)
+            {
+                if (!cstructToName.ContainsKey(strct))
+                {
+                    cstructToName[strct] = "struct_" + cstructToName.Count + "_t";
+                }
+                return cstructToName[strct];
+            }
+
+            class CStruct
+            {
+                IEnumerable<IDeclaration> decls;
+                string signature;
+
+                public CStruct(IEnumerable<IDeclaration> decls, CSource source)
+                {
+                    signature = "typedef struct {\n";
+
+                    foreach (var decl in decls)
+                    {
+                        signature += "\t" + source.GetCType(decl.Type,false,true) + " " + decl.Name + ";\n";
+                    }
+
+                    signature += "}";
+                    this.decls = decls;
+                }
+
+                public string Signature
+                {
+                    get
+                    {
+                        return signature;
+                    }
+                }
+
+                public override bool Equals(object obj)
+                {
+                    if (obj is CStruct)
+                    {
+                        if ((obj as CStruct).signature == signature)
+                        {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+
+                public override int GetHashCode()
+                {
+                    return signature.GetHashCode();
+                }
+
             }
 
             private void WriteStatementList(string outerfuncname, ref string funcstr, List<IStatement> statements)
@@ -123,27 +201,42 @@ namespace isc {
                     {
                         VariableDeclaration vdecl = (statement as VariableDeclaration);
 
-                        if (vdecl.Initializer is Function)
-                        {
-                            MakeFunction(vdecl.Name, outerfuncname, vdecl.Initializer as Function);
-                        }
-                        else
-                        {
-                            string type;
-                            GetCType(vdecl.Initializer.Type, out type);
-                            string name = vdecl.Name;
-                            string initializer = TranslateExpression(vdecl.Initializer, outerfuncname);
-                            funcstr += "\n\t" + type + " " + name + " = " + initializer + ";";
-                        }
+                        string type = GetCType(vdecl.Initializer.Type, true);
+                        //if (vdecl.Initializer is Function)
+                        //{
+                        //    MakeFunction(vdecl.Name, outerfuncname, vdecl.Initializer as Function);
+                        //}
+
+
+                        string name = vdecl.Name;
+                        string preps = "";
+
+                        string initializer = TranslateExpression(vdecl.Initializer, outerfuncname, ref preps);
+                        funcstr += preps + "\n\t" + type + " " + name + " = " + initializer + ";";
+
                     }
                     else if (statement is Invoker)
                     {
-                        funcstr += "\n\t" + TranslateExpression((statement as Invoker).FuncCall, outerfuncname) + ";";
+                        string preps = "";
+                        funcstr += preps + "\n\t" + TranslateExpression((statement as Invoker).FuncCall, outerfuncname, ref preps) + ";";
                     }
                     else if (statement is ReturnStatement)
                     {
+                        string preps = "";
                         ReturnStatement rs = statement as ReturnStatement;
-                        funcstr += "\n\treturn " + TranslateExpression(rs.Expression, outerfuncname) + ";";
+                        string initializer = TranslateExpression(rs.Expression, outerfuncname, ref preps);
+
+                        funcstr += preps + "\n\treturn " + initializer + ";";
+                    }
+                    else if (statement is EnumType)
+                    {
+                        EnumType et = statement as EnumType;
+                        int count = 0;
+                        foreach (var val in et.Values)
+                        {
+                            funcstr += "\n\tconst int " + val.Name + " = " + count++ + ";";
+                        }
+
                     }
                     else
                     {
@@ -152,16 +245,29 @@ namespace isc {
                 }
             }
 
-            
-
             private void MakeFunction(string funcname, string outerfuncname, Function func)
             {
                 StaticFunctionType sft = func.Type as StaticFunctionType;
-                string returntype;
-                GetCType(sft.ReturnType, out returntype);
+                string returntype = GetCType(sft.ReturnType,true);
 
-                string funcDef = returntype + " " + funcname + outerfuncname + "(" + ")\n";
+
+                string funcDef = returntype + " " + funcname + outerfuncname + "(" + "void* context" + ")\n";
+
+
                 funcDef += "{";
+
+                if (func.OutsideSymbols.Count() > 0)
+                {
+                    string structname = GetStructName(new CStruct(func.OutsideSymbols, this));
+                    funcDef += "\n\t" + structname + "* _unpack = (" + structname + "*)context" + ";" ;
+
+                    foreach (var decl in func.OutsideSymbols)
+                    {
+                        funcDef += "\n\t" + GetCType(decl.Type) + " " + decl.Name + " = _unpack->" + decl.Name + ";";
+                    }
+                }
+
+
                 WriteStatementList("_in_" + GetFunctionName(funcname, outerfuncname), ref funcDef, func.Statements);
                 funcDef += "\n}\n";
                 functions.Add(funcDef);
@@ -172,8 +278,9 @@ namespace isc {
                 return funcname + outerfuncname;
             }
 
-            private void GetCType(IType t, out string type)
+            private string GetCType(IType t, bool pointered = false, bool internalFunPtr = false)
             {
+                string type = "";
                 if (t is IntegerType)
                 {
                     IntegerType it = t as IntegerType;
@@ -231,33 +338,58 @@ namespace isc {
 
                     if (!funcTypeDefs.ContainsKey(sft))
                     {
-                        string rettype;
-                        GetCType(sft.ReturnType, out rettype);
+                        string rettype = GetCType(sft.ReturnType);
                         string alias = rettype.Replace(" ", "");
                         List<string> paramtypes = new List<string>();
                         foreach (IType pt in sft.ParameterTypes)
                         {
-                            string paramtype;
-                            GetCType(pt, out paramtype);
+                            string paramtype = GetCType(pt, true);
                             paramtypes.Add(paramtype);
                             alias += "_p_" + paramtype;
                         }
-                        alias += "_func_t";
+                        string functype = alias + "_func_t";
 
-                        string typedef = rettype + " (*" + alias + ")" + "(" + string.Join(", ", paramtypes.ToArray()) + ")";
+
+                        if (sft.ReturnType is StaticFunctionType)
+                        {
+                            rettype += "*";
+                        }
+
+                        string typedef = rettype + " (*" + functype + ")" + "(" + string.Join(", ", paramtypes.Concat(new string[] { "void*" }).ToArray()) + ")";
                         funcTypeDefs[sft] = new KeyValuePair<string, string>(alias, typedef);
                     }
 
                     type = funcTypeDefs[sft].Key;
+
+                    if (internalFunPtr)
+                    {
+                        type += "_func_t";
+                    }
+                    else
+                    {
+                        type += "_func_t_bind_t";
+                    }
+
+                    if (pointered)
+                    {
+                        type += "*";
+                    }
+
+                }
+                else if (t is EnumType)
+                {
+                    type = "int";
                 }
                 else
                 {
                     throw new Exception("Unknown type!");
                 }
+                return type;
             }
 
 
-            private string TranslateExpression(IExpression expression, string outerfuncname)
+
+            private string TranslateExpression(IExpression expression, string outerfuncname, ref string preparations)
             {
                 string initializer = "";
 
@@ -275,14 +407,47 @@ namespace isc {
                 }
                 else if (expression is FunctionCall)
                 {
+                    string preps = "";
                     FunctionCall fc = expression as FunctionCall;
-                    initializer = TranslateExpression(fc.LeftSideExpression, outerfuncname) + "(" + string.Join(", ", fc.Parms.Select(x => TranslateExpression(x, outerfuncname)).ToArray()) + ")";
+
+                    string callvarname = TranslateExpression(fc.LeftSideExpression, outerfuncname, ref preps);
+
+
+                    initializer = callvarname + "->func" + "(" + string.Join(", ", fc.Parms.Select(x => TranslateExpression(x, outerfuncname, ref preps)).Concat(new string[] { callvarname + "->context" }).ToArray()) + ")";
+                    preparations += preps;
                 }
                 else if (expression is Function)
                 {
                     Function func = expression as Function;
                     MakeFunction(func.Name, outerfuncname, func);
-                    initializer = "" + GetFunctionName(func.Name, outerfuncname);
+
+                    string bindstructname = GetCType(func.Type,true);
+                    string bindstructnameNoPtr = GetCType(func.Type);
+                    string bindvarname = "_" + GetFunctionName(func.Name, outerfuncname) + "_bind";
+
+                    preparations += "\n\n\t" + bindstructname + " " + bindvarname + " = malloc(sizeof(" + bindstructnameNoPtr + "));";
+                    preparations += "\n\t" + bindvarname + "->func = " + GetFunctionName(func.Name, outerfuncname) + ";";
+
+                    if (func.OutsideSymbols.Count() == 0)
+                    {
+                        preparations += "\n\t" + bindvarname + "->context = NULL;";
+                    }
+                    else
+                    {
+                        string contextPacker = bindvarname + "_context";
+                        string contextPackerstructname = cstructToName[new CStruct(func.OutsideSymbols, this)];
+                        preparations += "\n\t " + contextPackerstructname + "* " + contextPacker + " = malloc(sizeof(" + contextPackerstructname + "));";
+
+                        foreach (var decl in func.OutsideSymbols)
+                        {
+                            preparations += "\n\t" + contextPacker + "->" + decl.Name + " = " + decl.Name + ";";
+                        }
+
+                        preparations += "\n\t" + bindvarname + "->context = " + contextPacker + ";";
+
+                    }
+
+                    initializer = "" + bindvarname;
                 }
                 else
                 {
