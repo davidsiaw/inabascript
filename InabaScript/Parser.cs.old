@@ -1,335 +1,472 @@
 using System.Collections.Generic;
-using ParameterList = System.Collections.Generic.List<InabaScript.IExpression>;
+using InabaScript;
+using StatementList = System.Collections.Generic.List<InabaScript.IStatement>;
+
+
 
 using System;
 
 
 
-namespace InabaScript {
-    
-	internal class Parser {
-		const int _EOF = 0;
-	const int _ident = 1;
-	const int _type = 2;
-	const int _integer = 3;
-	const int _float = 4;
-	const int _utf8bom = 5;
-	const int _validStringLiteral = 6;
-	const int _colon = 7;
-	const int maxT = 20;
+public class Parser {
+	public const int _EOF = 0;
+	public const int _ident = 1;
+	public const int _typeident = 2;
+	public const int _integer = 3;
+	public const int _float = 4;
+	public const int _utf8bom = 5;
+	public const int _validStringLiteral = 6;
+	public const int _colon = 7;
+	public const int maxT = 26;
 
-		const bool T = true;
-		const bool x = false;
-		const int minErrDist = 2;
+	const bool T = true;
+	const bool x = false;
+	const int minErrDist = 2;
+	
+	public Scanner scanner;
+	public Errors  errors;
 
-		public static Token t;    // last recognized token
-		public static Token la;   // lookahead token
-		static int errDist = minErrDist;
+	public Token t;    // last recognized token
+	public Token la;   // lookahead token
+	int errDist = minErrDist;
 
-	public static InabaScriptSource iss;
-public static int anonnum = 0;
+public Scope endScope = new Scope();
+public StatementList statements = new StatementList();
 
 /* If you want your generated compiler case insensitive add the */
 /* keyword IGNORECASE here. */
 
 
 
-		static void SynErr (int n) {
-			if (errDist >= minErrDist) Errors.SynErr(la.line, la.col, n);
-			errDist = 0;
-		}
+	public Parser(Scanner scanner) {
+		this.scanner = scanner;
+		errors = new Errors();
+	}
 
-		public static void SemErr (string msg) {
-			if (errDist >= minErrDist) Errors.Error(t.line, t.col, msg);
-			errDist = 0;
-		}
-		
-		static void Get () {
-			for (;;) {
-				t = la;
-				la = Scanner.Scan();
-				if (la.kind <= maxT) { ++errDist; break; }
+	void SynErr (int n) {
+		if (errDist >= minErrDist) errors.SynErr(la.line, la.col, n);
+		errDist = 0;
+	}
+
+	public void SemErr (string msg) {
+		if (errDist >= minErrDist) errors.SemErr(t.line, t.col, msg);
+		errDist = 0;
+	}
 	
-				la = t;
+	void Get () {
+		for (;;) {
+			t = la;
+			la = scanner.Scan();
+			if (la.kind <= maxT) { ++errDist; break; }
+
+			la = t;
+		}
+	}
+	
+	void Expect (int n) {
+		if (la.kind==n) Get(); else { SynErr(n); }
+	}
+	
+	bool StartOf (int s) {
+		return set[s, la.kind];
+	}
+	
+	void ExpectWeak (int n, int follow) {
+		if (la.kind == n) Get();
+		else {
+			SynErr(n);
+			while (!StartOf(follow)) Get();
+		}
+	}
+
+
+	bool WeakSeparator(int n, int syFol, int repFol) {
+		int kind = la.kind;
+		if (kind == n) {Get(); return true;}
+		else if (StartOf(repFol)) {return false;}
+		else {
+			SynErr(n);
+			while (!(set[syFol, kind] || set[repFol, kind] || set[0, kind])) {
+				Get();
+				kind = la.kind;
 			}
+			return StartOf(syFol);
 		}
-		
-		static void Expect (int n) {
-			if (la.kind==n) Get(); else { SynErr(n); }
-		}
-		
-		static bool StartOf (int s) {
-			return set[s, la.kind];
-		}
-		
-		static void ExpectWeak (int n, int follow) {
-			if (la.kind == n) Get();
-			else {
-				SynErr(n);
-				while (!StartOf(follow)) Get();
-			}
-		}
-		
-		static bool WeakSeparator (int n, int syFol, int repFol) {
-			bool[] s = new bool[maxT+1];
-			if (la.kind == n) { Get(); return true; }
-			else if (StartOf(repFol)) return false;
-			else {
-				for (int i=0; i <= maxT; i++) {
-					s[i] = set[syFol, i] || set[repFol, i] || set[0, i];
-				}
-				SynErr(n);
-				while (!s[la.kind]) Get();
-				return StartOf(syFol);
-			}
-		}
-		
-		static void Identifier(out string identifier) {
+	}
+
+	
+	void SymbolLiteral(Scope scope, out IExpression expr) {
 		Expect(1);
-		identifier = t.val; 
+		expr = (IExpression)scope.GetDeclarationFor(t.val); 
 	}
 
-	static void IntegerLiteral(out IExpression integer) {
-		Expect(3);
-		integer = new IntegerLiteral(long.Parse(t.val)); 
-	}
-
-	static void StringLiteral(out IExpression str) {
-		Expect(6);
-		str = new StringLiteral(t.val.Substring(1, t.val.Length-2)); 
-	}
-
-	static void Referencer(ref Scope scope, out IExpression expr, Function func) {
-		string identifier; 
-		Identifier(out identifier);
-		expr = new Referencer(scope, identifier, func); 
-	}
-
-	static void ParameterList(ref Scope scope, ParameterList list, Function func) {
-		IExpression expr; 
-		PrimaryExpression(ref scope, out expr, func);
-		list.Add(expr); 
-		while (la.kind == 8) {
-			Get();
-			PrimaryExpression(ref scope, out expr, func);
-			list.Add(expr); 
-		}
-	}
-
-	static void PrimaryExpression(ref Scope scope, out IExpression expr, Function func) {
-		expr = null; 
-		if (la.kind == 3) {
-			IntegerLiteral(out expr);
-		} else if (la.kind == 6) {
-			StringLiteral(out expr);
-		} else if (la.kind == 1 || la.kind == 11) {
-			Evaluatable(ref scope, out expr, func);
-		} else SynErr(21);
-	}
-
-	static void Invocation(ref Scope scope, IExpression lhs, out IExpression expr, Function func) {
-		expr = null; 
-		List<IExpression> list = new List<IExpression>(); 
-		Expect(9);
+	void TupleType(Scope scope, out IType type) {
+		IType innerType; 
+		Expect(8);
+		List<IType> types = new List<IType>(); 
 		if (StartOf(1)) {
-			ParameterList(ref scope, list, func);
+			TypeIdentifier(scope, out innerType);
+			types.Add(innerType); 
+			while (la.kind == 9) {
+				Get();
+				TypeIdentifier(scope, out innerType);
+				types.Add(innerType); 
+			}
 		}
 		Expect(10);
-		if (la.kind == 9) {
-			Invocation(ref scope, lhs, out expr, func);
-		}
-		expr = new FunctionCall(lhs, list); 
+		type = new TupleType(types); 
 	}
 
-	static void FunctionCall(ref Scope scope, out IStatement stmt, Function func) {
-		IExpression expr = null; 
-		if (la.kind == 1) {
-			Referencer(ref scope, out expr, func);
-		} else if (la.kind == 11) {
-			FunctionDeclaration(ref scope, out expr, func);
-		} else SynErr(22);
-		Invocation(ref scope, expr, out expr, func);
-		stmt = new Invoker(expr); 
-	}
-
-	static void FunctionDeclaration(ref Scope scope, out IExpression fundecl, Function func) {
-		List<string> parameternames = new List<string>(); 
-		IStatement statement; 
-		IExpression retexpr = null; 
-		Expect(11);
-		Expect(9);
-		Expect(10);
-		Function innerfunc = new Function("func" + anonnum++, parameternames); 
-		Scope childscope = new Scope(innerfunc, scope, innerfunc); 
-		Expect(12);
-		while (StartOf(2)) {
-			Statement(ref childscope, out statement, innerfunc);
-			innerfunc.Add(statement); 
-		}
-		if (la.kind == 13) {
-			Get();
-			PrimaryExpression(ref childscope, out retexpr, innerfunc);
-			innerfunc.Return(retexpr); 
-			Expect(14);
-			innerfunc.Add(new ReturnStatement(retexpr)); 
-		}
-		if (func != null) { func.AddExternalSymbol(innerfunc.OutsideSymbols); } 
-		Expect(15);
-		fundecl = innerfunc; 
-	}
-
-	static void Evaluatable(ref Scope scope, out IExpression expr, Function func) {
-		expr = null; 
-		if (la.kind == 1) {
-			Referencer(ref scope, out expr, func);
-		} else if (la.kind == 11) {
-			FunctionDeclaration(ref scope, out expr, func);
-		} else SynErr(23);
-		if (la.kind == 9) {
-			Invocation(ref scope, expr, out expr, func);
-		}
-	}
-
-	static void Statement(ref Scope scope, out IStatement statement, Function func) {
-		statement = null; 
-		if (la.kind == 16) {
-			VariableDeclaration(ref scope, out statement, func);
-			Expect(14);
-		} else if (la.kind == 1 || la.kind == 11) {
-			FunctionCall(ref scope, out statement, func);
-			Expect(14);
+	void TypeIdentifier(Scope scope, out IType type) {
+		type = null; 
+		if (la.kind == 8) {
+			TupleType(scope, out type);
 		} else if (la.kind == 18) {
-			EnumTypeDeclaration(ref scope, out statement);
-			Expect(14);
-		} else SynErr(24);
-	}
-
-	static void VariableDeclaration(ref Scope scope, out IStatement vardecl, Function func) {
-		string identifier; 
-		IExpression expr; 
-		Expect(16);
-		Identifier(out identifier);
-		Expect(17);
-		PrimaryExpression(ref scope, out expr, func);
-		vardecl = new VariableDeclaration(identifier, expr); 
-		scope = new Scope(vardecl as VariableDeclaration, scope); 
-	}
-
-	static void Symbol(ref Scope scope, EnumType type, out VariableDeclaration vardecl) {
-		string identifier; 
-		Identifier(out identifier);
-		vardecl = new VariableDeclaration(identifier, new EnumLiteral(type, identifier)); 
-		scope = new Scope(vardecl as VariableDeclaration, scope); 
-	}
-
-	static void EnumTypeDeclaration(ref Scope scope, out IStatement typedecl) {
-		string identifier; 
-		VariableDeclaration vardecl; 
-		Expect(18);
-		Identifier(out identifier);
-		EnumType type = new EnumType(identifier); 
-		Expect(17);
-		Symbol(ref scope, type, out vardecl);
-		type.Add(vardecl); 
-		while (la.kind == 19) {
+			IntegerTypeDeclaration(scope, out type);
+		} else if (la.kind == 2) {
+			LiteralType(scope, out type);
+		} else if (la.kind == 12) {
+			ArrayType(scope, out type);
+		} else SynErr(27);
+		if (la.kind == 15) {
+			IType returnType; 
 			Get();
-			Symbol(ref scope, type, out vardecl);
-			type.Add(vardecl); 
+			TypeIdentifier(scope, out returnType);
+			type = new FunctionType(type, returnType); 
 		}
-		typedecl = type; 
 	}
 
-	static void InabaScript() {
-		Scope scope = iss.intrinsics; 
+	void TupleLiteral(Scope scope, out IExpression expr) {
+		IExpression innerExpression; 
+		Expect(8);
+		List<IExpression> exprs = new List<IExpression>(); 
+		if (StartOf(2)) {
+			Expression(scope, out innerExpression);
+			exprs.Add(innerExpression); 
+			while (la.kind == 9) {
+				Get();
+				Expression(scope, out innerExpression);
+				exprs.Add(innerExpression); 
+			}
+		}
+		Expect(10);
+		expr = new TupleExpression(exprs); 
+	}
+
+	void Expression(Scope scope, out IExpression expr) {
+		expr = null; 
+		if (la.kind == 14) {
+			FunctionLiteral(scope, out expr);
+		} else if (la.kind == 8) {
+			TupleLiteral(scope, out expr);
+		} else if (la.kind == 1) {
+			SymbolLiteral(scope, out expr);
+		} else if (la.kind == 3) {
+			IntegerLiteral(scope, out expr);
+		} else if (la.kind == 12) {
+			ArrayLiteral(scope, out expr);
+		} else SynErr(28);
+		if (StartOf(2)) {
+			IExpression rhs; 
+			Expression(scope, out rhs);
+			expr = new FunctionCall(expr, rhs); 
+		}
+	}
+
+	void IntegerRange(Scope scope, out IntegerRange range) {
+		Expect(3);
+		long min = long.Parse(t.val); long max = long.Parse(t.val); 
+		if (la.kind == 11) {
+			Get();
+			Expect(3);
+			max = long.Parse(t.val); 
+		}
+		range = new IntegerRange(min, max); 
+	}
+
+	void IntegerLiteral(Scope scope, out IExpression expr) {
+		IntegerRange range; 
+		IntegerRange(scope, out range);
+		expr = range; 
+	}
+
+	void ArrayLiteral(Scope scope, out IExpression expr) {
+		IExpression innerExpr; 
+		Expect(12);
+		List<IExpression> innerExprs = new List<IExpression>(); 
+		if (StartOf(2)) {
+			Expression(scope, out innerExpr);
+			innerExprs.Add(innerExpr); 
+			while (la.kind == 9) {
+				Get();
+				Expression(scope, out innerExpr);
+				innerExprs.Add(innerExpr); 
+			}
+		}
+		Expect(13);
+		expr = new ArrayLiteral(innerExprs); 
+	}
+
+	void FunctionLiteral(Scope scope, out IExpression expr) {
+		MultiVariableDeclaration retDecl; 
+		MultiVariableDeclaration parmDecl; 
+		Scope funcScope = new Scope(scope); 
+		List<IStatement> stmts = new List<IStatement>(); 
+		Expect(14);
+		VarNomination(ref funcScope, out parmDecl, true);
+		Expect(15);
+		VarNomination(ref funcScope, out retDecl, true);
+		Expect(16);
+		while (StartOf(3)) {
+			Statement(ref funcScope, stmts);
+		}
+		Expect(17);
+		expr = new FunctionLiteral(retDecl, parmDecl, stmts); 
+	}
+
+	void VarNomination(ref Scope scope, out MultiVariableDeclaration mvd, bool decl) {
+		VariableDeclaration varDecl; 
+		List<VariableDeclaration> vars = new List<VariableDeclaration>(); 
+		if (la.kind == 1) {
+			SingleVarNomination(ref scope, out varDecl, decl);
+			vars.Add(varDecl); 
+		} else if (la.kind == 8) {
+			Get();
+			SingleVarNomination(ref scope, out varDecl, decl);
+			vars.Add(varDecl); 
+			while (la.kind == 9) {
+				Get();
+				SingleVarNomination(ref scope, out varDecl, decl);
+				vars.Add(varDecl); 
+			}
+			Expect(10);
+		} else SynErr(29);
+		mvd = new MultiVariableDeclaration(vars, null); 
+	}
+
+	void Statement(ref Scope scope, StatementList stmts) {
 		IStatement stmt; 
+		if (la.kind == 23) {
+			SetDeclaration(ref scope, out stmt);
+			stmts.Add(stmt); 
+		} else if (la.kind == 1 || la.kind == 8 || la.kind == 22) {
+			VarDeclaration(ref scope, out stmt);
+			stmts.Add(stmt); 
+		} else SynErr(30);
+		Expect(25);
+		while (!(StartOf(4))) {SynErr(31); Get();}
+	}
+
+	void LiteralType(Scope scope, out IType type) {
+		Expect(2);
+		type = scope.GetTypeDeclaration(t.val); 
+	}
+
+	void IntegerRangeAsType(Scope scope, out IntegerType type) {
+		IntegerRange range; 
+		IntegerRange(scope, out range);
+		type = new IntegerType(range.min, range.max); 
+	}
+
+	void IntegerTypeDeclaration(Scope scope, out IType type) {
+		IntegerType intType; 
+		Expect(18);
+		Expect(16);
+		IntegerRangeAsType(scope, out intType);
+		type = intType; 
+		Expect(17);
+	}
+
+	void ArrayType(Scope scope, out IType type) {
+		IType innerType; 
+		IntegerType sizeType; 
+		Expect(12);
+		TypeIdentifier(scope, out innerType);
+		Expect(19);
+		IntegerRangeAsType(scope, out sizeType);
+		Expect(20);
+		Expect(13);
+		type = new ArrayType(innerType, sizeType); 
+	}
+
+	void SingleVarNomination(ref Scope scope, out VariableDeclaration varDecl, bool decl) {
+		IType type = new UnknownType(); 
+		varDecl = null; 
+		Expect(1);
+		string name = t.val; 
+		if (la.kind == 7) {
+			Get();
+			TypeIdentifier(scope, out type);
+		}
+		varDecl = VariableDeclaration.Find(ref scope, varDecl, name, decl); 
+	}
+
+	void Initializer(Scope scope, out IExpression expr) {
+		Expect(21);
+		Expression(scope, out expr);
+	}
+
+	void VarAssignment(ref Scope scope, out IStatement stmt) {
+		MultiVariableDeclaration mvd; 
+		IExpression expr = null; 
+		IExpression rhs = null; 
+		VariableDeclaration vd = null; 
+		stmt = null; 
+		if (la.kind == 22) {
+			Get();
+			VarNomination(ref scope, out mvd, true);
+			Initializer(scope, out expr);
+			stmt = new MultiVariableDeclaration(mvd.Declarations, expr); 
+		} else if (la.kind == 1) {
+			SingleVarNomination(ref scope, out vd, false);
+			if (la.kind == 21) {
+				Initializer(scope, out expr);
+				stmt = new MultiVariableDeclaration(new List<VariableDeclaration>(new VariableDeclaration[]{ vd }), expr); 
+			} else if (StartOf(2)) {
+				Expression(scope, out rhs);
+				stmt = new FunctionCall(vd, rhs); 
+			} else SynErr(32);
+		} else if (la.kind == 1 || la.kind == 8) {
+			VarNomination(ref scope, out mvd, false);
+			Initializer(scope, out expr);
+			stmt = new MultiVariableDeclaration(mvd.Declarations, expr); 
+		} else SynErr(33);
+	}
+
+	void VarDeclaration(ref Scope scope, out IStatement stmt) {
+		stmt = null; 
+		bool decl = false; 
+		VarAssignment(ref scope, out stmt);
+	}
+
+	void SetSymbol(ref Scope scope, out ISetMember elem) {
+		elem = null; 
+		Expect(1);
+		elem = new Symbol(t.val); 
+	}
+
+	void SetDeclaration(ref Scope scope, out IStatement stmt) {
+		List<ISetMember> elements = new List<ISetMember>(); 
+		ISetMember symbol; 
+		Expect(23);
+		Expect(2);
+		string name = t.val; 
+		Expect(21);
+		SetSymbol(ref scope, out symbol);
+		elements.Add(symbol); 
+		scope = new Scope(scope, (IDeclaration)symbol); 
+		while (la.kind == 24) {
+			Get();
+			SetSymbol(ref scope, out symbol);
+			elements.Add(symbol); 
+			scope = new Scope(scope, (IDeclaration)symbol); 
+		}
+		SetDeclaration set = new SetDeclaration(name, elements); 
+		stmt = set; 
+		scope = new Scope(scope, set); 
+	}
+
+	void InabaScript() {
+		
 		if (la.kind == 5) {
 			Get();
 		}
-		while (StartOf(2)) {
-			while (!(StartOf(3))) {SynErr(25); Get();}
-			Statement(ref scope, out stmt, null);
-			iss.statements.Add(stmt); 
+		while (StartOf(3)) {
+			Statement(ref endScope, statements);
 		}
 	}
 
 
 
-		public static void Parse() {
-			la = new Token();
-			la.val = "";		
-			Get();
-			InabaScript();
-
+	public void Parse() {
+		la = new Token();
+		la.val = "";		
+		Get();
+		InabaScript();
 		Expect(0);
-		Buffer.Close();
-		}
 
-		static bool[,] set = {
-			{T,T,x,x, x,x,x,x, x,x,x,T, x,x,x,x, T,x,T,x, x,x},
-		{x,T,x,T, x,x,T,x, x,x,x,T, x,x,x,x, x,x,x,x, x,x},
-		{x,T,x,x, x,x,x,x, x,x,x,T, x,x,x,x, T,x,T,x, x,x},
-		{T,T,x,x, x,x,x,x, x,x,x,T, x,x,x,x, T,x,T,x, x,x}
+	}
+	
+	static readonly bool[,] set = {
+		{T,T,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,T,x,x, x,x,T,T, x,x,x,x},
+		{x,x,T,x, x,x,x,x, T,x,x,x, T,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x},
+		{x,T,x,T, x,x,x,x, T,x,x,x, T,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x},
+		{x,T,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,x,x,x, x,x,T,T, x,x,x,x},
+		{T,T,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,T,x,x, x,x,T,T, x,x,x,x}
 
-		};
-	} // end Parser
+	};
+} // end Parser
 
 
-	internal class Errors {
-		public static int count = 0;                                    // number of errors detected
-	  public static string errMsgFormat = "-- line {0} col {1}: {2}"; // 0=line, 1=column, 2=text
-		
-		public static void SynErr (int line, int col, int n) {
-			string s;
-			switch (n) {
-				case 0: s = "EOF expected"; break;
+public class Errors {
+	public int count = 0;                                    // number of errors detected
+	public System.IO.TextWriter errorStream = Console.Out;   // error messages go to this stream
+	public string errMsgFormat = "-- line {0} col {1}: {2}"; // 0=line, 1=column, 2=text
+
+	public virtual void SynErr (int line, int col, int n) {
+		string s;
+		switch (n) {
+			case 0: s = "EOF expected"; break;
 			case 1: s = "ident expected"; break;
-			case 2: s = "type expected"; break;
+			case 2: s = "typeident expected"; break;
 			case 3: s = "integer expected"; break;
 			case 4: s = "float expected"; break;
 			case 5: s = "utf8bom expected"; break;
 			case 6: s = "validStringLiteral expected"; break;
 			case 7: s = "colon expected"; break;
-			case 8: s = "\",\" expected"; break;
-			case 9: s = "\"(\" expected"; break;
+			case 8: s = "\"(\" expected"; break;
+			case 9: s = "\",\" expected"; break;
 			case 10: s = "\")\" expected"; break;
-			case 11: s = "\"function\" expected"; break;
-			case 12: s = "\"{\" expected"; break;
-			case 13: s = "\"return\" expected"; break;
-			case 14: s = "\";\" expected"; break;
-			case 15: s = "\"}\" expected"; break;
-			case 16: s = "\"var\" expected"; break;
-			case 17: s = "\"=\" expected"; break;
-			case 18: s = "\"type\" expected"; break;
-			case 19: s = "\"|\" expected"; break;
-			case 20: s = "??? expected"; break;
-			case 21: s = "invalid PrimaryExpression"; break;
-			case 22: s = "invalid FunctionCall"; break;
-			case 23: s = "invalid Evaluatable"; break;
-			case 24: s = "invalid Statement"; break;
-			case 25: s = "this symbol not expected in InabaScript"; break;
+			case 11: s = "\"..\" expected"; break;
+			case 12: s = "\"[\" expected"; break;
+			case 13: s = "\"]\" expected"; break;
+			case 14: s = "\"function\" expected"; break;
+			case 15: s = "\"->\" expected"; break;
+			case 16: s = "\"{\" expected"; break;
+			case 17: s = "\"}\" expected"; break;
+			case 18: s = "\"Int\" expected"; break;
+			case 19: s = "\"<\" expected"; break;
+			case 20: s = "\">\" expected"; break;
+			case 21: s = "\"=\" expected"; break;
+			case 22: s = "\"var\" expected"; break;
+			case 23: s = "\"set\" expected"; break;
+			case 24: s = "\"|\" expected"; break;
+			case 25: s = "\";\" expected"; break;
+			case 26: s = "??? expected"; break;
+			case 27: s = "invalid TypeIdentifier"; break;
+			case 28: s = "invalid Expression"; break;
+			case 29: s = "invalid VarNomination"; break;
+			case 30: s = "invalid Statement"; break;
+			case 31: s = "this symbol not expected in Statement"; break;
+			case 32: s = "invalid VarAssignment"; break;
+			case 33: s = "invalid VarAssignment"; break;
 
-				default: s = "error " + n; break;
-			}
-			Console.WriteLine(Errors.errMsgFormat, line, col, s);
-			count++;
+			default: s = "error " + n; break;
 		}
+		errorStream.WriteLine(errMsgFormat, line, col, s);
+		count++;
+	}
 
-		public static void SemErr (int line, int col, int n) {
-			Console.WriteLine(errMsgFormat, line, col, ("error " + n));
-			count++;
-		}
+	public virtual void SemErr (int line, int col, string s) {
+		errorStream.WriteLine(errMsgFormat, line, col, s);
+		count++;
+	}
+	
+	public virtual void SemErr (string s) {
+		errorStream.WriteLine(s);
+		count++;
+	}
+	
+	public virtual void Warning (int line, int col, string s) {
+		errorStream.WriteLine(errMsgFormat, line, col, s);
+	}
+	
+	public virtual void Warning(string s) {
+		errorStream.WriteLine(s);
+	}
+} // Errors
 
-		public static void Error (int line, int col, string s) {
-			Console.WriteLine(errMsgFormat, line, col, s);
-			count++;
-		}
 
-		public static void Exception (string s) {
-			Console.WriteLine(s); 
-	#if !WindowsCE
-			System.Environment.Exit(1);
-	#endif
-		}
-	} // Errors
+public class FatalError: Exception {
+	public FatalError(string m): base(m) {}
 }
-

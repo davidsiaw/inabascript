@@ -1,13 +1,13 @@
-
-using System.Collections.Generic;
-using ParameterList = System.Collections.Generic.List<InabaScript.IExpression>;
+ï»¿using System.Collections.Generic;
+using InabaScript;
+using StatementList = System.Collections.Generic.List<InabaScript.IStatement>;
 
 COMPILER InabaScript
 
 /* Add auxiliary methods and declaration here. */
 
-public static InabaScriptSource iss;
-public static int anonnum = 0;
+public Scope endScope = new Scope();
+public StatementList statements = new StatementList();
 
 /* If you want your generated compiler case insensitive add the */
 /* keyword IGNORECASE here. */
@@ -32,13 +32,12 @@ closeParens = ')'.
 openBracket = '['.
 closeBracket = ']'.
 negative = '-'.
-space = " ".
-validStringChars = letter + digit + "!£:$^&*()_+-=,./;[]©®<>?#:@~{}|" + space + tab.
+validStringChars = letter + digit + "!ï½£:$^&*()_+-=,./;[]ï½©ï½®<>?#:@~{}|".
 
 TOKENS
 /* Add token declarations here. */
 ident = validInitialIdentChars {validSubsequentIdentChars}.
-type = validInitialTypeChars {validSubsequentIdentChars}.
+typeident = validInitialTypeChars {validSubsequentIdentChars}.
 integer = [negative] digit {digit}.
 float = digit {digit} '.' digit {digit}.
 utf8bom = '\u00ef' '\u00bb' '\u00bf'.
@@ -64,142 +63,238 @@ IGNORE cr + lf + tab
 
 PRODUCTIONS
 
-/* Add your productions here, one must have the same name as the grammar, */
-/* it will be the start symbol (entry point of your compiler). */
 
-Identifier<out string identifier> =
-ident															(. identifier = t.val; .)
+SymbolLiteral<Scope scope, out IExpression expr> = 
+ident																				(. expr = (IExpression)scope.GetDeclarationFor(t.val); .)
 .
 
-IntegerLiteral<out IExpression integer> =
-integer															(. integer = new IntegerLiteral(long.Parse(t.val)); .)
-.
-
-StringLiteral<out IExpression str> = 
-validStringLiteral												(. str = new StringLiteral(t.val.Substring(1, t.val.Length-2)); .)
-.
-
-Referencer<ref Scope scope, out IExpression expr, Function func> =				(. string identifier; .)
-Identifier<out identifier>										(. expr = new Referencer(scope, identifier, func); .)
-.
-
-ParameterList<ref Scope scope, ParameterList list, Function func> =				(. IExpression expr; .)
-PrimaryExpression<ref scope, out expr, func>									(. list.Add(expr); .)
-{
-	"," PrimaryExpression<ref scope, out expr, func>							(. list.Add(expr); .)
-}
-.
-
-Invocation<ref Scope scope, IExpression lhs, out IExpression expr, Function func> =(. expr = null; .)
-																				(. List<IExpression> list = new List<IExpression>(); .)
-"("
-	[ ParameterList<ref scope, list, func> ]
+TupleType<Scope scope, out IType type> =											(. IType innerType; .)
+"("																					(. List<IType> types = new List<IType>(); .)
+[
+	TypeIdentifier<scope, out innerType>											(. types.Add(innerType); .)
+	{
+		"," TypeIdentifier<scope, out innerType>									(. types.Add(innerType); .)
+	}
+]
 ")"
+																					(. type = new TupleType(types); .)
+.
+
+TupleLiteral<Scope scope, out IExpression expr> =									(. IExpression innerExpression; .)
+"("																					(. List<IExpression> exprs = new List<IExpression>(); .)
 [
-	Invocation<ref scope, lhs, out expr, func>
+	Expression<scope, out innerExpression>											(. exprs.Add(innerExpression); .)
+	{
+		"," Expression<scope, out innerExpression>									(. exprs.Add(innerExpression); .)
+	}
 ]
-																				(. expr = new FunctionCall(lhs, list); .)
+")"
+																					(. expr = new TupleExpression(exprs); .)
 .
 
-FunctionCall<ref Scope scope, out IStatement stmt, Function func> =				(. IExpression expr = null; .)
+IntegerRange<Scope scope, out IntegerRange range> =
 (
-	Referencer<ref scope, out expr, func> |
-	FunctionDeclaration<ref scope, out expr, func>
+	integer																			(. long min = long.Parse(t.val); long max = long.Parse(t.val); .)
+	[
+		".." 
+		integer																		(. max = long.Parse(t.val); .)
+	]
+																					(. range = new IntegerRange(min, max); .)
 )
-Invocation<ref scope, expr, out expr, func>
-																				(. stmt = new Invoker(expr); .)
 .
 
+IntegerLiteral<Scope scope, out IExpression expr> =									(. IntegerRange range; .)
+IntegerRange<scope, out range>														(. expr = range; .)
+.
 
-Evaluatable<ref Scope scope, out IExpression expr, Function func> =				(. expr = null; .)
-(
-	Referencer<ref scope, out expr, func> |
-	FunctionDeclaration<ref scope, out expr, func>
-)
-[
-	Invocation<ref scope, expr, out expr, func>
+ArrayLiteral<Scope scope, out IExpression expr> =									(. IExpression innerExpr; .)
+"["																					(. List<IExpression> innerExprs = new List<IExpression>(); .)
+[																					
+	Expression<scope, out innerExpr>												(. innerExprs.Add(innerExpr); .)
+	{
+		"," Expression<scope, out innerExpr>										(. innerExprs.Add(innerExpr); .)
+	}
 ]
+"]"																					(. expr = new ArrayLiteral(innerExprs); .)
 .
 
 
-FunctionDeclaration<ref Scope scope, out IExpression fundecl, Function func> =
-																				(. List<string> parameternames = new List<string>(); .)
-																				(. IStatement statement; .)
-																				(. IExpression retexpr = null; .)
+FunctionLiteral<Scope scope, out IExpression expr> =								(. MultiVariableDeclaration retDecl; .)
+																					(. MultiVariableDeclaration parmDecl; .)
+																					(. Scope funcScope = new Scope(scope); .)
+																					(. List<IStatement> stmts = new List<IStatement>(); .)
 "function"
-"("
-")"
-																				(. Function innerfunc = new Function("func" + anonnum++, parameternames); .)
-																				(. Scope childscope = new Scope(innerfunc, scope, innerfunc); .)
+(
+	VarNomination<ref funcScope, out parmDecl, true>										
+)
+"->"
+VarNomination<ref funcScope, out retDecl, true>
 "{"
-{
-	Statement<ref childscope, out statement, innerfunc>							(. innerfunc.Add(statement); .)
-}
-[
-	"return"
-	PrimaryExpression<ref childscope, out retexpr, innerfunc>					(. innerfunc.Return(retexpr); .)
-	";"																			(. innerfunc.Add(new ReturnStatement(retexpr)); .)
+{Statement<ref funcScope, stmts>}
+"}"																					(. expr = new FunctionLiteral(retDecl, parmDecl, stmts); .)
+.
+
+Expression<Scope scope, out IExpression expr> =										(. expr = null; .)
+(
+	FunctionLiteral<scope, out expr> |
+	TupleLiteral<scope, out expr> |
+	SymbolLiteral<scope, out expr> |
+	IntegerLiteral<scope, out expr> |
+	ArrayLiteral<scope, out expr>
+)
+(	
+	[																				(. IExpression rhs; .)
+		Expression<scope, out rhs>													(. expr = new FunctionCall(expr, rhs); .)
+	]
+)
+.
+
+LiteralType<Scope scope, out IType type> = 
+typeident																			(. type = scope.GetTypeDeclaration(t.val); .)
+.
+
+IntegerRangeAsType<Scope scope, out IntegerType type> =								(. IntegerRange range; .)
+IntegerRange<scope, out range>														(. type = new IntegerType(range.min, range.max); .)
+.
+
+IntegerTypeDeclaration<Scope scope, out IType type> =								(. IntegerType intType; .)
+"Int" "{"
+IntegerRangeAsType<scope, out intType>												(. type = intType; .)
+"}"
+.
+
+ArrayType<Scope scope, out IType type> =											(. IType innerType; .)
+																					(. IntegerType sizeType; .)
+"["
+TypeIdentifier<scope, out innerType>
+"<"
+IntegerRangeAsType<scope, out sizeType>
+">"
+"]"																					(. type = new ArrayType(innerType, sizeType); .)
+.
+
+TypeIdentifier<Scope scope, out IType type> =										(. type = null; .)
+(
+	TupleType<scope, out type> |
+	IntegerTypeDeclaration<scope, out type> |
+	LiteralType<scope, out type> |
+	ArrayType<scope, out type>
+)
+[																					(. IType returnType; .)
+	"->" TypeIdentifier<scope, out returnType>										(. type = new FunctionType(type, returnType); .)
 ]
-																				(. if (func != null) { func.AddExternalSymbol(innerfunc.OutsideSymbols); } .)
-"}"																				(. fundecl = innerfunc; .)
 .
 
+SingleVarNomination<ref Scope scope, out VariableDeclaration varDecl, bool decl> =	(. IType type = new UnknownType(); .)
+																					(. varDecl = null; .)
 
-PrimaryExpression<ref Scope scope, out IExpression expr, Function func> =		(. expr = null; .)
+ident																				(. string name = t.val; .)
+[
+":"
+TypeIdentifier<scope, out type>
+]
+																					(. varDecl = VariableDeclaration.Find(ref scope, varDecl, name, decl); .)
+.
+
+VarNomination<ref Scope scope, out MultiVariableDeclaration mvd, bool decl> =
+																					(. VariableDeclaration varDecl; .)
+																					(. List<VariableDeclaration> vars = new List<VariableDeclaration>(); .)
 (
-	IntegerLiteral<out expr> |
-	StringLiteral<out expr> |
-	Evaluatable<ref scope, out expr, func>
+	SingleVarNomination<ref scope, out varDecl, decl>								(. vars.Add(varDecl); .)
+	| (
+		"("
+		SingleVarNomination<ref scope, out varDecl, decl>							(. vars.Add(varDecl); .)
+		{
+			"," SingleVarNomination<ref scope, out varDecl, decl>					(. vars.Add(varDecl); .)
+		}
+		")"
+	)
 )
-.
-
-VariableDeclaration<ref Scope scope, out IStatement vardecl, Function func> =	(. string identifier; .)
-																(. IExpression expr; .)
-"var" 
-Identifier<out identifier>
-"=" 
-PrimaryExpression<ref scope, out expr, func>
-																(. vardecl = new VariableDeclaration(identifier, expr); .)
-																(. scope = new Scope(vardecl as VariableDeclaration, scope); .)
+																					(. mvd = new MultiVariableDeclaration(vars, null); .)
 .
 
 
-Symbol<ref Scope scope, EnumType type, out VariableDeclaration vardecl> =(. string identifier; .)
-Identifier<out identifier>										(. vardecl = new VariableDeclaration(identifier, new EnumLiteral(type, identifier)); .)
-																(. scope = new Scope(vardecl as VariableDeclaration, scope); .)
-.
-
-
-EnumTypeDeclaration<ref Scope scope, out IStatement typedecl> =	(. string identifier; .)
-																(. VariableDeclaration vardecl; .)
-"type"
-Identifier<out identifier>										(. EnumType type = new EnumType(identifier); .)
+Initializer<Scope scope, out IExpression expr> =
 "="
-Symbol<ref scope, type, out vardecl>							(. type.Add(vardecl); .)
-{
-	"|" Symbol<ref scope, type, out vardecl>					(. type.Add(vardecl); .)
-}
-																(. typedecl = type; .)
+Expression<scope, out expr>
 .
 
 
-
-Statement<ref Scope scope, out IStatement statement, Function func> =(. statement = null; .)
-
+VarAssignment<ref Scope scope, out IStatement stmt> =								(. MultiVariableDeclaration mvd; .)
+																					(. IExpression expr = null; .)
+																					(. IExpression rhs = null; .)
+																					(. VariableDeclaration vd = null; .)
+																					(. stmt = null; .)
 (
-	(VariableDeclaration<ref scope, out statement, func> ";") |
-	(FunctionCall<ref scope, out statement, func> ";") |
-	(EnumTypeDeclaration<ref scope, out statement> ";")
+(
+	"var" 
+	VarNomination<ref scope, out mvd, true>
+	Initializer<scope, out expr>													(. stmt = new MultiVariableDeclaration(mvd.Declarations, expr); .)
+)
+|
+(
+	SingleVarNomination<ref scope, out vd, false>
+	(
+		(
+			Initializer<scope, out expr>											(. stmt = new MultiVariableDeclaration(new List<VariableDeclaration>(new VariableDeclaration[]{ vd }), expr); .)
+		)
+		| 
+		(
+			Expression<scope, out rhs>												(. stmt = new FunctionCall(vd, rhs); .)
+		)
+	)
+)
+|
+(
+	VarNomination<ref scope, out mvd, false>
+	Initializer<scope, out expr>													(. stmt = new MultiVariableDeclaration(mvd.Declarations, expr); .)
+)
 )
 .
 
-/* InabaScript, like JavaScript is just a bunch of statements */
-InabaScript =													(. Scope scope = iss.intrinsics; .)
-																(. IStatement stmt; .)
-[utf8bom]
+
+VarDeclaration<ref Scope scope, out IStatement stmt> =								(. stmt = null; .)
+																					(. bool decl = false; .)
+(
+	VarAssignment<ref scope, out stmt>
+)
+.
+
+
+SetSymbol<ref Scope scope, out ISetMember elem> =									(. elem = null; .)
+(
+	(ident)																			(. elem = new Symbol(t.val); .)
+)
+.
+
+SetDeclaration<ref Scope scope, out IStatement stmt> =								(. List<ISetMember> elements = new List<ISetMember>(); .)
+																					(. ISetMember symbol; .)
+"set"
+typeident																			(. string name = t.val; .)
+"="
+SetSymbol<ref scope, out symbol>													(. elements.Add(symbol); .)
+																					(. scope = new Scope(scope, (IDeclaration)symbol); .)
 {
-	SYNC Statement<ref scope, out stmt, null>					(. iss.statements.Add(stmt); .)
+	"|" SetSymbol<ref scope, out symbol>											(. elements.Add(symbol); .)
+																					(. scope = new Scope(scope, (IDeclaration)symbol); .)
 }
+																					(. SetDeclaration set = new SetDeclaration(name, elements); .)
+																					(. stmt = set; .)
+																					(. scope = new Scope(scope, set); .)
+.
+
+
+Statement<ref Scope scope, StatementList stmts> =									(. IStatement stmt; .)
+(
+	SetDeclaration<ref scope, out stmt>												(. stmts.Add(stmt); .)
+|	VarDeclaration<ref scope, out stmt>												(. stmts.Add(stmt); .)
+)
+";"	SYNC
+.
+
+InabaScript =																		(.  .)
+[utf8bom]
+{Statement<ref endScope, statements>}
 .
 
 END InabaScript.

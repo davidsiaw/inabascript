@@ -1,0 +1,48 @@
+﻿set Alpha = a | b | c;
+set Laughs = lol | lmao;
+set Boolean = true | false;
+
+var alphaVariable:Alpha = a;
+var integerVariable:Int{0..5} = 4;
+
+var booleanVariable:Boolean = true;
+var booleanVariableNonLiteral:Boolean = booleanVariable;
+
+var array:[Int{0..10000}<2>] = 0..1;
+var alphaArray:[Alpha<0..5>] = [b,b];
+
+var doubleTuple:(Alpha,Boolean) = (a,false);
+var nestedTuple:((Alpha,Laughs),Boolean) = ((a,lmao),true);
+
+var singleValueTuple:(((Alpha))) = a;
+var emptyTuple:() = ();
+
+var (tuple1:Alpha,tuple2:Laughs) = (a,lol);
+
+var func:Alpha->() = function (cc:Alpha) -> r:()
+{
+	var ww:Alpha = cc;
+};
+
+var func2:Alpha->Laughs = function (cc:Alpha) -> r:Laughs 
+{
+	var ww:Alpha = cc;
+	r = lmao;
+};
+
+var m:Laughs = func2 c;
+
+var lateTypeBind = a;
+var (latePair1, latePair2) = (2,3);
+
+var func3 = function input -> output {
+	output = input;
+};
+
+var ma = func3 a;
+var mb = func3 lol;
+var mc = func3 true;
+
+var md = function (x,y)->z {
+	z = x;
+}(1,2);

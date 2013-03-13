@@ -1,0 +1,10 @@
+﻿var funcReturnSame = function input -> output {
+	output = input;
+};
+
+funcReturnSame = function input -> output {
+	funcReturnSame input;
+};
+
+var ma = funcReturnSame 1;
+var mb = funcReturnSame 2;

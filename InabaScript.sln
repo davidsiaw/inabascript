@@ -1,29 +1,20 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InabaScript", "InabaScript\InabaScript.csproj", "{F5EFE4B6-4F44-44C0-96C5-5001F7AD0729}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "isc", "isc\isc.csproj", "{1B9BF067-E5F0-4852-85EC-9A3F56122B63}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InabaScript", "InabaScript\InabaScript.csproj", "{5C77BB04-D636-41F4-B550-C5ECF42A2C04}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-		Debug|Any CPU = Debug|Any CPU
-		Release|Any CPU = Release|Any CPU
+		Debug|x86 = Debug|x86
+		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{F5EFE4B6-4F44-44C0-96C5-5001F7AD0729}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{F5EFE4B6-4F44-44C0-96C5-5001F7AD0729}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{F5EFE4B6-4F44-44C0-96C5-5001F7AD0729}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{F5EFE4B6-4F44-44C0-96C5-5001F7AD0729}.Release|Any CPU.Build.0 = Release|Any CPU
-		{1B9BF067-E5F0-4852-85EC-9A3F56122B63}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1B9BF067-E5F0-4852-85EC-9A3F56122B63}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{1B9BF067-E5F0-4852-85EC-9A3F56122B63}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{1B9BF067-E5F0-4852-85EC-9A3F56122B63}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5C77BB04-D636-41F4-B550-C5ECF42A2C04}.Debug|x86.ActiveCfg = Debug|x86
+		{5C77BB04-D636-41F4-B550-C5ECF42A2C04}.Debug|x86.Build.0 = Debug|x86
+		{5C77BB04-D636-41F4-B550-C5ECF42A2C04}.Release|x86.ActiveCfg = Release|x86
+		{5C77BB04-D636-41F4-B550-C5ECF42A2C04}.Release|x86.Build.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
-	EndGlobalSection
-	GlobalSection(DPCodeReviewSolutionGUID) = preSolution
-		DPCodeReviewSolutionGUID = {00000000-0000-0000-0000-000000000000}
 	EndGlobalSection
 EndGlobal
