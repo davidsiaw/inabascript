@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.IO;
 
 namespace InabaScript
 {
@@ -812,8 +813,34 @@ namespace InabaScript
     {
         static void Main(string[] args)
         {
-            Parser p = new Parser(new Scanner(@"D:\VS\Programs\InabaScript\InabaScript\basicExpressions.is"));
-            p.Parse();
+            string file = @"D:\VS\Programs\InabaScript\InabaScript\basicExpressions.is";
+            string[] lines = File.ReadAllLines(file);
+            Parser p = new Parser(new Scanner(file));
+
+            try
+            {
+                p.Parse();
+            }
+            catch (Exception e)
+            {
+                for (int i = Math.Max(0, p.la.line - 3); i < Math.Min(p.scanner.lines.Count, p.la.line + 2); i++)
+                {
+                    WriteColoredLine(lines, p, i);
+                    if (i == p.la.line - 1)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine(Enumerable.Range(1, p.la.col - 1).Aggregate("", (x, y) => x + " ") + "^");
+                    }
+                }
+
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine(e.Message);
+            }
+
+            //for (int i = 0; i < lines.Length; i++)
+            //{
+            //    WriteColoredLine(lines, p, i);
+            //}
 
             List<IStatement> boundStatements = new List<IStatement>();
             Scope s = new Scope();
@@ -827,5 +854,71 @@ namespace InabaScript
 
             Console.ReadKey();
         }
+
+        private static void WriteColoredLine(string[] lines, Parser p, int line)
+        {
+            Console.WriteLine(lines[line]);
+            Console.CursorTop--;
+            var tokens = p.scanner.lines[line];
+            for (int i = 0; i < tokens.Count; i++)
+            {
+                var x = tokens[i];
+                Console.CursorLeft = x.col - 1;
+                switch (x.kind)
+                {
+                    case Parser._ident:
+                        Console.ForegroundColor = ConsoleColor.Cyan;
+                        break;
+                    case Parser._typeident:
+                        Console.ForegroundColor = ConsoleColor.Magenta;
+                        break;
+                    case Parser._integer:
+                        Console.ForegroundColor = ConsoleColor.Cyan;
+                        break;
+                    case Parser._validStringLiteral:
+                        Console.ResetColor();
+                        break;
+                    case Parser._arrow:
+                        if (tokens[i + 1].kind != Parser._typeident)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Yellow;
+                        }
+                        break;
+                    case Parser._colon:
+                        Console.ResetColor();
+                        break;
+                    default:
+                        if (x.val == "{" || x.val == "}" || x.val == "[" || x.val == "]")
+                        {
+                            Console.ForegroundColor = ConsoleColor.White;
+                        }
+                        else if (x.val == "<" || x.val == ">" || x.val == "(" || x.val == ")" || x.val == "[" || x.val == "]" || x.val == ",")
+                        {
+                            Console.ForegroundColor = ConsoleColor.White;
+                        }
+                        else if (x.val == "..")
+                        {
+                            Console.ResetColor();
+                        }
+                        else if (x.val == "Int" && tokens[i + 1].val == "{")
+                        {
+                            Console.ForegroundColor = ConsoleColor.Magenta;
+                        }
+                        else if (x.val == "var" || x.val == "set")
+                        {
+                            Console.ForegroundColor = ConsoleColor.Green;
+                        }
+                        else
+                        {
+                            Console.ResetColor();
+                        }
+
+                        break;
+                }
+                Console.Write(x.val);
+            }
+            Console.WriteLine();
+        }
+
     }
 }

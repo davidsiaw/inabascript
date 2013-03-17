@@ -363,7 +363,7 @@ bool IsPartOfType()
 			Get();
 			TypeIdentifier(scope, out type);
 			varDecl = new VariableDeclaration(name, type); 
-			varDecl = null; 
+			scope = new Scope(scope, varDecl); 
 		}
 		varDecl = varDecl ?? VariableDeclaration.Find(ref scope, varDecl, name, decl); 
 	}
@@ -615,8 +615,9 @@ public class Errors {
 
 			default: s = "error " + n; break;
 		}
-		errorStream.WriteLine(errMsgFormat, line, col, s);
-		count++;
+		throw new Exception(s);
+		// errorStream.WriteLine(errMsgFormat, line, col, s);
+		// count++;
 	}
 
 	public virtual void SemErr (int line, int col, string s) {

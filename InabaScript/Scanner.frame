@@ -28,6 +28,7 @@ Coco/R itself) does not fall under the GNU General Public License.
 using System;
 using System.IO;
 using System.Collections;
+using System.Collections.Generic;
 
 -->namespace
 
@@ -244,6 +245,8 @@ public class Scanner {
 
 	Token tokens;     // list of tokens already peeked (first token is a dummy)
 	Token pt;         // current peek token
+
+	public List<List<Token>> lines = new List<List<Token>>();	// Lines of tokens
 	
 	char[] tval = new char[128]; // text of current token
 	int tlen;         // length of current token
@@ -282,6 +285,7 @@ public class Scanner {
 			NextCh();
 		}
 		pt = tokens = new Token();  // first token is a dummy
+		lines.Add(new List<Token>());
 	}
 	
 	void NextCh() {
@@ -293,7 +297,10 @@ public class Scanner {
 			// replace isolated '\r' by '\n' in order to make
 			// eol handling uniform across Windows, Unix and Mac
 			if (ch == '\r' && buffer.Peek() != '\n') ch = EOL;
-			if (ch == EOL) { line++; col = 0; }
+			if (ch == EOL) {
+				line++; col = 0;
+				lines.Add(new List<Token>());
+			}
 		}
 -->casing1
 	}
@@ -356,9 +363,12 @@ public class Scanner {
 	// get the next token (possibly a token already seen during peeking)
 	public Token Scan () {
 		if (tokens.next == null) {
-			return NextToken();
+			var retval = NextToken();
+            lines[lines.Count - 1].Add(t);
+			return retval;
 		} else {
 			pt = tokens = tokens.next;
+            lines[lines.Count - 1].Add(t);
 			return tokens;
 		}
 	}

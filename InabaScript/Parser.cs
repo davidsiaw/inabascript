@@ -615,8 +615,9 @@ public class Errors {
 
 			default: s = "error " + n; break;
 		}
-		errorStream.WriteLine(errMsgFormat, line, col, s);
-		count++;
+		throw new Exception(s);
+		// errorStream.WriteLine(errMsgFormat, line, col, s);
+		// count++;
 	}
 
 	public virtual void SemErr (int line, int col, string s) {
