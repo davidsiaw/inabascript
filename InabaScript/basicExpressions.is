@@ -1,0 +1,54 @@
+﻿set Bool = true | false;
+
+var mr1:Int{1..20} = 4;
+var mr2:Int{1..5} = mr1;
+
+var a = 0;
+
+var ma = a;
+var mf1 = x -> c { };
+var mf2 = x -> c { } 2;
+var mf3 = mf1 a;
+var mf4 = (x -> c { }) 2;
+var mf41 = (x -> c { } 2);
+
+var mf5 = x:Bool -> c:Bool { };
+var mf6 = x:Bool -> c:Bool { } true;
+var mf7 = (x:Bool -> c:Bool { });
+var mf8 = (x:Bool -> c:Bool { }) true;
+var mf9 = (x:Bool -> c:Bool { } true);
+var mf10 = (x:Bool -> c:Bool { } true, x:Bool -> c:Bool { });
+
+var mx = ();
+
+var mx1 = (x) -> c { };
+var mx2 = (x,y) -> c { };
+var mx3 = (x,y) -> (c,d) { };
+var mx4 = (x,y) -> (c,d) { } (1,2);
+
+var mx5 = (x:Bool) -> c:Bool {};
+var mx6 = (x:Bool, y:Bool) -> c:Bool {} false;
+var mx61 = (x:Bool, y) -> c:Bool {} false;
+var mx62 = (x:Bool, y:Bool) -> c {} false;
+var mx7 = (x:Bool, y:Bool) -> (c:Bool, d:Bool) {};
+var mx8 = (x:Bool, y:Bool) -> (c:Bool, d:Bool) {} (true, false);
+
+var mx9 = (x -> y { }, a);
+var mx10 = (x -> y { } (1,2), 3);
+
+var mc1 = x:Bool->Bool -> c:Bool { };
+var mc3 = x:Bool->Bool -> c:Bool->Bool { };
+var mc2 = (x:Bool->Bool) -> c:Bool { };
+var mc4 = (x:Bool->Bool) -> c:Bool->Bool { };
+
+var mc5 = (x:Bool->Bool, y:Bool->Bool) -> c:Bool->Bool { };
+
+var m3c1 = x:Bool->Bool->Bool -> c:Bool->Bool { };
+
+var me1 = (mx1) 2;
+var me2 = (mx2) (2,4);
+
+var (mp1, mp2) = (1,2);
+var (mp3, mp4) = (x,y) -> (c,d) { } (1,2);
+
+
