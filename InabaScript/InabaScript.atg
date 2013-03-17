@@ -1,6 +1,9 @@
 ﻿using System.Collections.Generic;
 using InabaScript;
+using System.Diagnostics;
 using StatementList = System.Collections.Generic.List<InabaScript.IStatement>;
+using VarList = System.Collections.Generic.List<InabaScript.VariableDeclaration>;
+using ExpressionList = System.Collections.Generic.List<InabaScript.IExpression>;
 
 COMPILER InabaScript
 
@@ -8,6 +11,12 @@ COMPILER InabaScript
 
 public Scope endScope = new Scope();
 public StatementList statements = new StatementList();
+
+bool IsPartOfType()
+{
+	Token next = scanner.Peek();
+	return la.kind == _arrow && next.kind != _ident;
+}
 
 /* If you want your generated compiler case insensitive add the */
 /* keyword IGNORECASE here. */
@@ -43,6 +52,7 @@ float = digit {digit} '.' digit {digit}.
 utf8bom = '\u00ef' '\u00bb' '\u00bf'.
 validStringLiteral = '"' { validStringChars | ('\\' ('n'|'r'|'r'|'\\') ) } '"'.
 colon = ':'.
+arrow = '-' '>'.
 
 PRAGMAS
 /* Add pragma declarations here. */
@@ -64,33 +74,6 @@ IGNORE cr + lf + tab
 PRODUCTIONS
 
 
-SymbolLiteral<Scope scope, out IExpression expr> = 
-ident																				(. expr = (IExpression)scope.GetDeclarationFor(t.val); .)
-.
-
-TupleType<Scope scope, out IType type> =											(. IType innerType; .)
-"("																					(. List<IType> types = new List<IType>(); .)
-[
-	TypeIdentifier<scope, out innerType>											(. types.Add(innerType); .)
-	{
-		"," TypeIdentifier<scope, out innerType>									(. types.Add(innerType); .)
-	}
-]
-")"
-																					(. type = new TupleType(types); .)
-.
-
-TupleLiteral<Scope scope, out IExpression expr> =									(. IExpression innerExpression; .)
-"("																					(. List<IExpression> exprs = new List<IExpression>(); .)
-[
-	Expression<scope, out innerExpression>											(. exprs.Add(innerExpression); .)
-	{
-		"," Expression<scope, out innerExpression>									(. exprs.Add(innerExpression); .)
-	}
-]
-")"
-																					(. expr = new TupleExpression(exprs); .)
-.
 
 IntegerRange<Scope scope, out IntegerRange range> =
 (
@@ -119,33 +102,221 @@ ArrayLiteral<Scope scope, out IExpression expr> =									(. IExpression innerEx
 .
 
 
-FunctionLiteral<Scope scope, out IExpression expr> =								(. MultiVariableDeclaration retDecl; .)
-																					(. MultiVariableDeclaration parmDecl; .)
-																					(. Scope funcScope = new Scope(scope); .)
-																					(. List<IStatement> stmts = new List<IStatement>(); .)
-"function"
+Primary<Scope scope, out IExpression expr> =										(. IType type = new UnknownType(); .)
+																					(. string name = ""; .)
+																					(. expr = null; .)
+																					(. IExpression rhs; .)
 (
-	VarNomination<ref funcScope, out parmDecl, true>										
+	(
+		ident																		(. name = t.val; .)
+		(
+			[
+				(
+					":"
+					TypeIdentifier<scope, out type>									(. VariableDeclaration vd = new VariableDeclaration(name, type); .)
+																					(. MultiVariableDeclaration parmDecl = new MultiVariableDeclaration(new List<VariableDeclaration>(new VariableDeclaration[] {vd}), null); .)
+					FunctionReturnDefinition<scope, out expr, parmDecl>
+				)
+				|
+				(
+																					(. VariableDeclaration vd = new VariableDeclaration(name, type); .)
+																					(. MultiVariableDeclaration parmDecl = new MultiVariableDeclaration(new List<VariableDeclaration>(new VariableDeclaration[] {vd}), null); .)
+					FunctionReturnDefinition<scope, out expr, parmDecl>
+				)
+			]
+			[
+																					(. expr = expr ?? (IExpression)scope.GetDeclarationFor(name); .)
+				Expression<scope, out rhs>											(. expr = new FunctionCall(expr, rhs); .)
+			]
+																					(. expr = expr ?? (IExpression)scope.GetDeclarationFor(name); .)
+		)
+	)
+	|
+	(
+		"("																			(. VarList vl = new VarList(); .)
+		(
+			StillPrimary<scope, out expr, vl> | ")"
+		)
+	)
 )
-"->"
+
+.
+
+
+StillPrimary<Scope scope, out IExpression expr, VarList vl> =						(. IType type = new UnknownType(); .)
+																					(. string name = ""; .)
+																					(. expr = null; .)
+																					(. IExpression rhs; .)
+(
+	(
+		ident																		(. name = t.val; .)
+		(
+		  (
+			")"
+			[																		
+																					(. VariableDeclaration newestParam = new VariableDeclaration(name, type); .)
+																					(. vl.Add(newestParam); .)
+																					(. MultiVariableDeclaration parmDecl = new MultiVariableDeclaration(vl, null); .)
+				FunctionReturnDefinition<scope, out expr, parmDecl>
+			]
+			[
+																					(. expr = expr ?? (IExpression)scope.GetDeclarationFor(name); .)
+				Expression<scope, out rhs>											(. expr = new FunctionCall(expr, rhs); .)
+			]
+																					(. expr = expr ?? (IExpression)scope.GetDeclarationFor(name); .)
+		  )
+		| (
+			(
+				":" 
+				TypeIdentifier<scope, out type>										(. VariableDeclaration newestParam = new VariableDeclaration(name, type); .)
+																					(. vl.Add(newestParam); .)
+																					(. MultiVariableDeclaration parmDecl = new MultiVariableDeclaration(vl, null); .)
+				(
+					(
+						FunctionReturnDefinition<scope, out expr, parmDecl>
+						(
+							(
+								")"
+								[
+									Expression<scope, out rhs>						(. expr = new FunctionCall(expr, rhs); .)
+								]
+							)
+							|
+							(
+								Expression<scope, out rhs>							(. expr = new FunctionCall(expr, rhs); .)
+								(
+									")"	| 
+									(
+																					(. ExpressionList el = new ExpressionList(); .)
+																					(. expr = expr ?? (IExpression)scope.GetDeclarationFor(name); .)
+																					(. el.Add(expr); .)
+										"," Secondary<scope, el, out expr>
+									)
+								)
+							)
+							|
+							(
+																					(. ExpressionList el = new ExpressionList(); .)
+																					(. expr = expr ?? (IExpression)scope.GetDeclarationFor(name); .)
+																					(. el.Add(expr); .)
+								("," Secondary<scope, el, out expr>)
+							)
+						)
+					)
+					|
+					(
+						")" FunctionReturnDefinition<scope, out expr, parmDecl>
+						(
+							(
+								[
+									Expression<scope, out rhs>						(. expr = new FunctionCall(expr, rhs); .)
+								]
+								[
+																					(. ExpressionList el = new ExpressionList(); .)
+																					(. expr = expr ?? (IExpression)scope.GetDeclarationFor(name); .)
+																					(. el.Add(expr); .)
+									("," Secondary<scope, el, out expr>)
+								]
+							)
+							
+						)
+					)
+					|
+					(
+																					(. VariableDeclaration vd; .)
+						NextNomination<ref scope, out vd>
+						FunctionReturnDefinition<scope, out expr, parmDecl>
+						[
+							Expression<scope, out rhs>								(. expr = new FunctionCall(expr, rhs); .)
+						]
+					)
+				)
+			)
+			)
+		| (
+			","																		(. vl.Add(new VariableDeclaration(name, type)); .)
+			StillPrimary<scope, out expr, vl>
+		  )
+		| (																			(. VariableDeclaration newestParam = new VariableDeclaration(name, type); .)
+																					(. vl.Add(newestParam); .)
+																					(. MultiVariableDeclaration parmDecl = new MultiVariableDeclaration(vl, null); .)
+			FunctionReturnDefinition<scope, out expr, parmDecl> 
+			(
+				(
+					")"
+					Expression<scope, out rhs>										(. expr = new FunctionCall(expr, rhs); .)
+				)
+				|
+				(
+					[","]
+																					(. ExpressionList el = new ExpressionList(); .)
+																					(. expr = expr ?? (IExpression)scope.GetDeclarationFor(name); .)
+																					(. el.Add(expr); .)
+					Secondary<scope, el, out expr>
+				)
+			)
+		  )
+		)
+	)
+	|
+	(
+		(
+			IntegerLiteral<scope, out expr>
+			| ArrayLiteral<scope, out expr>
+		)
+																					(. ExpressionList el = new ExpressionList(); .)
+																					(. expr = expr ?? (IExpression)scope.GetDeclarationFor(name); .)
+																					(. el.Add(expr); .)
+		[ "," Secondary<scope, el, out expr>]
+	)
+)
+.
+
+
+NextNomination<ref Scope scope, out VariableDeclaration varDecl> =
+"," SingleVarNomination<ref scope, out varDecl, true>
+(
+	NextNomination<ref scope, out varDecl>
+|
+	")"
+)
+.
+
+
+Secondary<Scope scope, ExpressionList el, out IExpression expr> =
+Expression<scope, out expr>															(. el.Add(expr); .)
+(	
+	(
+		"," Secondary<scope, el, out expr>
+	)
+	|
+	(
+		")"																			(. expr = new TupleExpression(el); .)
+	)
+)
+.
+
+
+
+FunctionReturnDefinition<Scope scope, out IExpression expr, MultiVariableDeclaration parmDecl> =
+																					(. MultiVariableDeclaration retDecl; .)
+																					(. Scope funcScope = new Scope(scope); .)
+																					(. StatementList stmts = new StatementList(); .)
+arrow																				(. VariableDeclaration.Scopify(ref funcScope, parmDecl.Declarations); .)
 VarNomination<ref funcScope, out retDecl, true>
 "{"
 {Statement<ref funcScope, stmts>}
-"}"																					(. expr = new FunctionLiteral(retDecl, parmDecl, stmts); .)
+"}"
+																					(. expr = new FunctionLiteral(retDecl, parmDecl, stmts); .)
 .
 
+
 Expression<Scope scope, out IExpression expr> =										(. expr = null; .)
+																					(. scope = new Scope(scope); .)
 (
-	FunctionLiteral<scope, out expr> |
-	TupleLiteral<scope, out expr> |
-	SymbolLiteral<scope, out expr> |
 	IntegerLiteral<scope, out expr> |
-	ArrayLiteral<scope, out expr>
-)
-(	
-	[																				(. IExpression rhs; .)
-		Expression<scope, out rhs>													(. expr = new FunctionCall(expr, rhs); .)
-	]
+	ArrayLiteral<scope, out expr> |
+	Primary<scope, out expr>
 )
 .
 
@@ -163,6 +334,18 @@ IntegerRangeAsType<scope, out intType>												(. type = intType; .)
 "}"
 .
 
+TupleType<Scope scope, out IType type> =											(. IType innerType; .)
+"("																					(. List<IType> types = new List<IType>(); .)
+[
+	TypeIdentifier<scope, out innerType>											(. types.Add(innerType); .)
+	{
+		"," TypeIdentifier<scope, out innerType>									(. types.Add(innerType); .)
+	}
+]
+")"
+																					(. type = new TupleType(types); .)
+.
+
 ArrayType<Scope scope, out IType type> =											(. IType innerType; .)
 																					(. IntegerType sizeType; .)
 "["
@@ -173,15 +356,19 @@ IntegerRangeAsType<scope, out sizeType>
 "]"																					(. type = new ArrayType(innerType, sizeType); .)
 .
 
-TypeIdentifier<Scope scope, out IType type> =										(. type = null; .)
+FirstOrderTypeIdentifier<Scope scope, out IType type> =								(. type = null; .)
 (
 	TupleType<scope, out type> |
 	IntegerTypeDeclaration<scope, out type> |
 	LiteralType<scope, out type> |
 	ArrayType<scope, out type>
 )
-[																					(. IType returnType; .)
-	"->" TypeIdentifier<scope, out returnType>										(. type = new FunctionType(type, returnType); .)
+.
+
+TypeIdentifier<Scope scope, out IType type> =										(. type = null; .)
+FirstOrderTypeIdentifier<scope, out type>
+[IF(IsPartOfType())																	(. IType returnType; .)
+	arrow TypeIdentifier<scope, out returnType>										(. type = new FunctionType(type, returnType); .)
 ]
 .
 
@@ -191,9 +378,10 @@ SingleVarNomination<ref Scope scope, out VariableDeclaration varDecl, bool decl>
 ident																				(. string name = t.val; .)
 [
 ":"
-TypeIdentifier<scope, out type>
+TypeIdentifier<scope, out type>														(. varDecl = new VariableDeclaration(name, type); .)
+																					(. scope = new Scope(scope, varDecl); .)
 ]
-																					(. varDecl = VariableDeclaration.Find(ref scope, varDecl, name, decl); .)
+																					(. varDecl = varDecl ?? VariableDeclaration.Find(ref scope, varDecl, name, decl); .)
 .
 
 VarNomination<ref Scope scope, out MultiVariableDeclaration mvd, bool decl> =

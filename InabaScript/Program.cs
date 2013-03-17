@@ -22,10 +22,9 @@ namespace InabaScript
     {
     }
 
-    public interface IExpression
+    public interface IExpression : IStatement
     {
         IType Type { get; }
-        IExpression Bind(Scope scope);
     }
 
     public interface IVariable
@@ -36,7 +35,6 @@ namespace InabaScript
 
     public interface IStatement
     {
-        IStatement Bind(ref Scope scope);
     }
     
 
@@ -207,18 +205,18 @@ namespace InabaScript
 
         public FunctionCall(IExpression lhs, IExpression rhs)
         {
-            //if (!(lhs.Type is FunctionType))
-            //{
-            //    throw new Exception(lhs + " not a function!");
-            //}
+            if (!(lhs.Type.DeTuple() is FunctionType))
+            {
+                throw new Exception(lhs + " not a function!");
+            }
 
-            //FunctionType lhsType = (FunctionType)lhs.Type;
-            //if (!lhsType.ArgumentType.Accepts(rhs.Type))
-            //{
-            //    throw new Exception(lhs.Type + " does not accept " + rhs.Type);
-            //}
+            FunctionType lhsType = (FunctionType)lhs.Type.DeTuple();
+            if (!lhsType.ArgumentType.Accepts(rhs.Type))
+            {
+                throw new Exception(lhs.Type + " does not accept " + rhs.Type);
+            }
 
-            //Type = lhsType.ReturnType;
+            Type = lhsType.ReturnType;
 
             Lhs = lhs;
             Rhs = rhs;
@@ -237,23 +235,6 @@ namespace InabaScript
             private set;
         }
 
-        public IStatement Bind(ref Scope scope)
-        {
-            return (IStatement)this.Bind(scope);
-        }
-
-        public IExpression Bind(Scope scope)
-        {
-            var boundLhs = Lhs.Bind(scope);
-            var boundRhs = Rhs.Bind(scope);
-
-            if (boundLhs.Type.DeTuple() is BoundFunctionLiteral.BoundFunctionType)
-            {
-                scope.BindFuncLiterals(boundLhs.Type.DeTuple() as BoundFunctionLiteral.BoundFunctionType, boundRhs);
-                return new FunctionCall(boundLhs, boundRhs, (boundLhs.Type.DeTuple() as BoundFunctionLiteral.BoundFunctionType).ReturnType(boundRhs));
-            }
-            throw new Exception("not a function!");
-        }
     }
 
     public class FunctionLiteral : IExpression
@@ -326,64 +307,12 @@ namespace InabaScript
             }
         }
 
-        public FunctionLiteral GetFunctionFor(Scope scope, IExpression rhs)
-        {
-            FunctionLiteral fl;
-            if (boundFunctions.TryGetValue(rhs.Type.Name, out fl))
-            {
-                return fl;
-            }
-
-            // create a function literal that fits the rhs
-
-            List<IStatement> statements = new List<IStatement>();
-
-            scope = new Scope(scopeAtPrototype);
-
-            MultiVariableDeclaration parms = new MultiVariableDeclaration(prototype.Parameter.Declarations.Select(x => new VariableDeclaration(x.Name, x.Type)).ToList(), rhs);
-
-            for (int i = 0; i < parms.Declarations.Count; i++)
-            {
-                scope = new Scope(scope, parms.Declarations[i]);
-            }
-
-            foreach (var stmt in prototype.Statements)
-            {
-                statements.Add(stmt.Bind(ref scope));
-            }
-
-            List<VariableDeclaration> rets = new List<VariableDeclaration>();
-
-            for (int i = 0; i < prototype.ReturnValue.Declarations.Count; i++)
-            {
-                string name = prototype.ReturnValue.Declarations[i].Name;
-                VariableDeclaration decl = (VariableDeclaration)scope.GetDeclarationForOrNull(name);
-                if (decl == null)
-                {
-                    rets.Add(new VariableDeclaration(name, new TupleType(new List<IType>())));
-                }
-                else
-                {
-                    rets.Add(new VariableDeclaration(name, decl.Type));
-                }
-            }
-
-            fl = new FunctionLiteral(new MultiVariableDeclaration(rets, null), parms, statements);
-
-            boundFunctions[rhs.Type.Name] = fl;
-
-            return fl;
-        }
 
         public IType Type
         {
             get { return new BoundFunctionType(this); }
         }
 
-        public IExpression Bind(Scope scope)
-        {
-            throw new NotImplementedException();
-        }
     }
 
     class ArrayLiteral : IExpression
@@ -403,11 +332,6 @@ namespace InabaScript
 
         public IType Type { get; set; }
 
-
-        public IExpression Bind(Scope scope)
-        {
-            return new ArrayLiteral(contents.Select(x => x.Bind(scope)).ToList());
-        }
     }
 
     class IntegerRange : IDeclaration, IExpression, ISetMember
@@ -592,10 +516,6 @@ namespace InabaScript
             private set;
         }
 
-        public IExpression Bind(Scope scope)
-        {
-            return new TupleExpression(expressions.Select(x => x.Bind(scope)).ToList());
-        }
     }
 
     public class VariableDeclaration : IExpression, IDeclaration, IVariable
@@ -628,6 +548,14 @@ namespace InabaScript
         public override string ToString()
         {
             return "var:" + Name;
+        }
+
+        public static void Scopify(ref Scope scope, List<VariableDeclaration> declarations)
+        {
+            foreach (var decl in declarations)
+            {
+                scope = new Scope(scope, decl);
+            }
         }
 
         public static VariableDeclaration Find(ref Scope scope, VariableDeclaration vardecl, string name, bool isDeclaration)
@@ -691,13 +619,19 @@ namespace InabaScript
 
                 if (declarations.Count == 1)
                 {
-                    declarations[0].Type = new TupleType(types);
+                    if (declarations[0].Type is UnknownType)
+                    {
+                        declarations[0].Type = new TupleType(types);
+                    }
                 }
                 else
                 {
                     for (int i = 0; i < types.Count; i++)
                     {
-                        declarations[i].Type = types[i];
+                        if (declarations[i].Type == null || declarations[i].Type is UnknownType)
+                        {
+                            declarations[i].Type = types[i];
+                        }
                     }
                 }
 
@@ -722,35 +656,6 @@ namespace InabaScript
             private set;
         }
 
-        public IStatement Bind(ref Scope scope)
-        {
-            IExpression boundExpr = initializer.Bind(scope);
-
-            List<VariableDeclaration> newDeclarations = new List<VariableDeclaration>();
-            if (boundExpr is TupleType)
-            {
-                var types = boundExpr as TupleType;
-                for (int i = 0; i < Declarations.Count; i++)
-                {
-                    var vardecl = VariableDeclaration.Find(ref scope, null, Declarations[i].Name, true);
-                    newDeclarations.Add(vardecl);
-                }
-            }
-            else
-            {
-                var vardecl = VariableDeclaration.Find(ref scope, null, Declarations[0].Name, true);
-                newDeclarations.Add(vardecl);
-            }
-
-            var boundVar = new MultiVariableDeclaration(newDeclarations, boundExpr);
-
-            return boundVar;
-        }
-
-        public IExpression Bind(Scope scope)
-        {
-            throw new Exception();
-        }
     }
 
     class SetDeclaration : IStatement, IType, IDeclaration
@@ -877,14 +782,6 @@ namespace InabaScript
             list.Add(literal);
         }
 
-        public void BindFuncLiterals(BoundFunctionLiteral.BoundFunctionType type, IExpression rhs)
-        {
-            foreach (var lit in funcTypeToLiterals[type.Name])
-            {
-                lit.GetFunctionFor(this, rhs);
-            }
-        }
-
         public IDeclaration GetDeclarationFor(string ident)
         {
             IDeclaration decl = GetDeclarationForOrNull(ident);
@@ -911,12 +808,11 @@ namespace InabaScript
         }
     }
 
-
     class Program
     {
         static void Main(string[] args)
         {
-            Parser p = new Parser(new Scanner(@"D:\VS\Experiments\Eureka\Eureka\test2.is"));
+            Parser p = new Parser(new Scanner(@"D:\VS\Programs\InabaScript\InabaScript\basicExpressions.is"));
             p.Parse();
 
             List<IStatement> boundStatements = new List<IStatement>();
@@ -924,7 +820,9 @@ namespace InabaScript
 
             foreach (var statement in p.statements)
             {
-                boundStatements.Add(statement.Bind(ref s));
+                if (statement is MultiVariableDeclaration)
+                {
+                }
             }
 
             Console.ReadKey();

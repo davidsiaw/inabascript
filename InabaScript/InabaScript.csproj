@@ -53,6 +53,7 @@
   <ItemGroup>
     <None Include="app.config" />
     <None Include="base.is" />
+    <None Include="basicExpressions.is" />
     <None Include="inabascript.atg" />
     <None Include="test1.is" />
     <None Include="test2.is" />

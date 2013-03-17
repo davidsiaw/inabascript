@@ -1,8 +1,8 @@
-﻿var funcReturnSame = function input -> output {
+﻿var funcReturnSame = input -> output {
 	output = input;
 };
 
-funcReturnSame = function input -> output {
+funcReturnSame = input -> output {
 	funcReturnSame input;
 };
 
